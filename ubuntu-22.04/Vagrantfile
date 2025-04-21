@@ -1,0 +1,130 @@
+## Vagrant file for K8S 
+## Ubuntu 22.04 LTS for best compability with K8S 
+## Don't upgdage to 24.04 LTS
+## ansible and ubuntu users connect with ol01 ssh key
+## IPs 192.168.0.180,192.168.0.181,192.168.0.182
+## VirtualBox Group K8S 
+
+require 'yaml'
+
+# Load configuration from external file
+config_file = File.join(File.dirname(__FILE__), 'config.yml')
+unless File.exist?(config_file)
+  raise "Configuration file 'config.yml' not found!"
+end
+settings = YAML.load_file(config_file)
+
+Vagrant.configure("2") do |config|
+  config.vm.box = settings['box']
+
+  # Common SSH settings
+  config.ssh.insert_key = false
+  config.ssh.forward_agent = true
+  config.ssh.extra_args = ["-o", "StrictHostKeyChecking=no"]
+
+  # Define nodes
+  settings['nodes'].each do |node_name, node_config|
+    config.vm.define node_name do |node|
+      node.vm.hostname = node_name
+      node.vm.network "private_network", ip: node_config['private_ip']
+      node.vm.network "public_network", ip: node_config['public_ip'], bridge: settings['bridge_interface'], auto_config: false
+      node.vm.network "forwarded_port", guest: 22, host: node_config['ssh_port'], id: "ssh"
+
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = node_name
+        vb.memory = node_config['memory']
+        vb.cpus = node_config['cpus']
+        vb.customize ["modifyvm", :id, "--description", "role=#{node_config['role']} ansible=yes"]
+        vb.customize ["modifyvm", :id, "--groups", "/#{settings['vb_group']}"]  # Assign to K8S group
+      end
+
+      node.vm.provision "shell", inline: <<-SHELL
+        set -x
+        sleep 10
+
+        # Ensure interfaces are up
+        sudo ip link set enp0s8 up 2>&1 | tee -a /tmp/network.log
+        sudo ip link set enp0s9 up 2>&1 | tee -a /tmp/network.log
+
+        # Remove existing Netplan configs
+        sudo rm -f /etc/netplan/*.yaml 2>&1 | tee -a /tmp/netplan.log
+
+        # Create Netplan configuration
+        cat <<EOF | sudo tee /etc/netplan/99-vagrant.yaml
+network:
+  version: 2
+  ethernets:
+    enp0s8:
+      addresses: [#{node_config['private_ip']}/24]
+    enp0s9:
+      addresses: [#{node_config['public_ip']}/24]
+      routes:
+        - to: 0.0.0.0/0
+          via: #{settings['gateway']}
+      nameservers:
+        addresses: [#{settings['nameservers'].join(', ')}]
+EOF
+
+        # Apply Netplan configuration
+        sudo chmod 600 /etc/netplan/99-vagrant.yaml 2>&1 | tee -a /tmp/netplan.log
+        sudo netplan apply 2>&1 | tee -a /tmp/netplan.log
+
+        # Fallback IP assignment
+        sudo ip addr add #{node_config['public_ip']}/24 dev enp0s9 2>&1 | tee -a /tmp/ip.log || echo "Failed to add IP to enp0s9" | tee -a /tmp/ip.log
+        sudo ip route add default via #{settings['gateway']} 2>&1 | tee -a /tmp/route.log || echo "Failed to add default route" | tee -a /tmp/route.log
+
+        # Log network state
+        ip a | tee /tmp/ip_after.log
+        ip route | tee /tmp/route_after.log
+
+        # Configure SSH for ansible user
+        sudo useradd -m -s /bin/bash -G sudo ansible 2>&1 | tee -a /tmp/user.log
+        sudo mkdir -p /home/ansible/.ssh
+        echo '#{settings['ssh_key']}' | sudo tee /home/ansible/.ssh/authorized_keys
+        sudo chmod 600 /home/ansible/.ssh/authorized_keys
+        sudo chown -R ansible:ansible /home/ansible/.ssh
+
+        # Configure SSH for ubuntu user
+        sudo mkdir -p /home/ubuntu/.ssh
+        echo '#{settings['ssh_key']}' | sudo tee /home/ubuntu/.ssh/authorized_keys
+        sudo chmod 600 /home/ubuntu/.ssh/authorized_keys
+        sudo chown -R ubuntu:ubuntu /home/ubuntu/.ssh
+
+        # Enable SSH public key authentication
+        sudo sed -i 's/^#\\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+        sudo systemctl restart ssh 2>&1 | tee -a /tmp/ssh.log
+
+        # Grant passwordless sudo
+        echo "ansible ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ansible
+        sudo chmod 440 /etc/sudoers.d/ansible
+        echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu
+        sudo chmod 440 /etc/sudoers.d/ubuntu
+
+        # Configure SSH config for both users
+        echo -e "Host *\\n  StrictHostKeyChecking no\\n  UserKnownHostsFile=/dev/null" | sudo tee /home/ansible/.ssh/config
+        sudo chown ansible:ansible /home/ansible/.ssh/config
+        sudo chmod 600 /home/ansible/.ssh/config
+        echo -e "Host *\\n  StrictHostKeyChecking no\\n  UserKnownHostsFile=/dev/null" | sudo tee /home/ubuntu/.ssh/config
+        sudo chown ubuntu:ubuntu /home/ubuntu/.ssh/config
+        sudo chmod 600 /home/ubuntu/.ssh/config
+
+        # Remove vagrant user
+        sudo userdel -r vagrant 2>&1 | tee -a /tmp/user.log || echo "Failed to delete vagrant user with userdel" | tee -a /tmp/user.log
+        sudo rm -rf /home/vagrant 2>&1 | tee -a /tmp/user.log
+        if grep -q "^vagrant:" /etc/passwd; then
+          echo "Error: vagrant user still exists in /etc/passwd" | tee -a /tmp/user.log
+          sudo sed -i '/^vagrant:/d' /etc/passwd 2>&1 | tee -a /tmp/user.log
+          sudo sed -i '/^vagrant:/d' /etc/shadow 2>&1 | tee -a /tmp/user.log
+          sudo sed -i '/^vagrant:/d' /etc/group 2>&1 | tee -a /tmp/user.log
+          echo "Manually removed vagrant user from /etc/passwd, /etc/shadow, /etc/group" | tee -a /tmp/user.log
+        else
+          echo "vagrant user successfully removed from /etc/passwd" | tee -a /tmp/user.log
+        fi
+
+        # Remove Vagrant's insecure public key
+        sudo rm -f /home/ansible/.ssh/authorized_keys.d/vagrant 2>&1 | tee -a /tmp/user.log
+        sudo rm -f /home/ubuntu/.ssh/authorized_keys.d/vagrant 2>&1 | tee -a /tmp/user.log
+      SHELL
+    end
+  end
+end
