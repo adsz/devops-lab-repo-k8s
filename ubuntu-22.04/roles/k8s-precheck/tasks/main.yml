@@ -1,16 +1,31 @@
+# /repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/roles/k8s-precheck/tasks/main.yml
 ---
-# *** ZADANIA SPRAWDZAJĄCE ISTNIENIE POPRZEDNIEJ INSTALACJI K8S (BEZ CZYSZCZENIA) ***
+# *** TASKS TO CHECK FOR PREVIOUS K8S INSTALLATION (WITHOUT CLEANUP) ***
 - name: Test k8s-precheck role
   debug:
     msg: "Running k8s-precheck role"
   tags: k8s_precheck
 
+# Set status variables with default values
+- name: Initialize environment status variables
+  set_fact:
+    env_clean: true
+    env_issues: []
+  tags: k8s_precheck
+
+# Check 1: Ports
 - name: Sprawdź, czy krytyczne porty Kubernetes są już zajęte
   become: yes
   shell: ss -Hltn '( sport = :6443 or sport = :10259 or sport = :10257 or sport = :10250 or sport = :2379 or sport = :2380 )' | grep LISTEN || true
   register: k8s_ports_check
   changed_when: false
-  failed_when: k8s_ports_check.stdout != ""
+  tags: k8s_precheck
+
+- name: Check ports status
+  set_fact:
+    env_clean: false
+    env_issues: "{{ env_issues + ['Krytyczne porty Kubernetes są już zajęte'] }}"
+  when: k8s_ports_check.stdout != ""
   tags: k8s_precheck
 
 - name: Debug k8s_ports_check
@@ -19,6 +34,7 @@
   when: k8s_ports_check is defined
   tags: k8s_precheck
 
+# Check 2: Manifests
 - name: Sprawdź, czy katalog manifestów Kubernetes (/etc/kubernetes/manifests) zawiera pliki
   become: yes
   ansible.builtin.find:
@@ -27,8 +43,14 @@
     patterns: '*.yaml'
   register: k8s_manifests_check
   changed_when: false
-  failed_when: k8s_manifests_check.matched > 0
   ignore_errors: true
+  tags: k8s_precheck
+
+- name: Check manifests status
+  set_fact:
+    env_clean: false
+    env_issues: "{{ env_issues + ['Katalog /etc/kubernetes/manifests już istnieje i zawiera pliki'] }}"
+  when: k8s_manifests_check.matched > 0
   tags: k8s_precheck
 
 - name: Debug k8s_manifests_check
@@ -37,6 +59,7 @@
   when: k8s_manifests_check is defined
   tags: k8s_precheck
 
+# Check 3: ETCD
 - name: Sprawdź, czy katalog danych etcd (/var/lib/etcd) istnieje i nie jest pusty
   become: yes
   ansible.builtin.find:
@@ -46,8 +69,14 @@
     recurse: no
   register: k8s_etcd_dir_check
   changed_when: false
-  failed_when: k8s_etcd_dir_check.matched > 0
   ignore_errors: true
+  tags: k8s_precheck
+
+- name: Check etcd status
+  set_fact:
+    env_clean: false
+    env_issues: "{{ env_issues + ['Katalog /var/lib/etcd już istnieje i zawiera dane'] }}"
+  when: k8s_etcd_dir_check.matched > 0
   tags: k8s_precheck
 
 - name: Debug k8s_etcd_dir_check
@@ -56,19 +85,47 @@
   when: k8s_etcd_dir_check is defined
   tags: k8s_precheck
 
+# Check 4: Kubelet
 - name: Sprawdź, czy usługa kubelet jest aktywna
   become: yes
   ansible.builtin.service_facts:
   register: service_facts
   tags: k8s_precheck
 
-- name: Ustaw zmienną k8s_kubelet_check.rc
+- name: Check kubelet status
   set_fact:
-    k8s_kubelet_check: "{{ {'rc': 0 if 'kubelet' in service_facts.ansible_facts.services and service_facts.ansible_facts.services['kubelet'].state == 'running' else 3} }}"
+    env_clean: false
+    env_issues: "{{ env_issues + ['Usługa kubelet jest już uruchomiona'] }}"
+  when: "'kubelet' in service_facts.ansible_facts.services and service_facts.ansible_facts.services['kubelet'].state == 'running'"
   tags: k8s_precheck
 
-- name: Debug k8s_kubelet_check
+# Check 5: Kubernetes config
+- name: Sprawdź, czy istnieje plik konfiguracyjny Kubernetes
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: k8s_config_check
+  tags: k8s_precheck
+
+- name: Check k8s config status
+  set_fact:
+    env_clean: false
+    env_issues: "{{ env_issues + ['Plik konfiguracyjny Kubernetes /etc/kubernetes/admin.conf już istnieje'] }}"
+  when: k8s_config_check.stat.exists
+  tags: k8s_precheck
+
+# Final status report
+- name: Wyświetl podsumowanie czystego środowiska
   debug:
-    var: k8s_kubelet_check.rc
-  when: k8s_kubelet_check is defined
+    msg: "ŚRODOWISKO JEST CZYSTE - można bezpiecznie instalować Kubernetes master node"
+  when: env_clean
+  tags: k8s_precheck
+
+- name: Wyświetl podsumowanie problemów
+  debug:
+    msg: |
+      UWAGA: Wykryto elementy wcześniejszej instalacji Kubernetes:
+      {{ env_issues | join('\n- ') }}
+      
+      Zaleca się wyczyszczenie środowiska przed ponowną instalacją.
+  when: not env_clean
   tags: k8s_precheck

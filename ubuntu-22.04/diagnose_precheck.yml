@@ -1,0 +1,42 @@
+---
+- name: Diagnose k8s-precheck role
+  hosts: k8s_masters
+  become: yes
+  tasks:
+    - name: Show the tasks structure
+      debug:
+        msg: "This is a diagnostic task"
+      tags: always
+
+    - name: Check if k8s-precheck role directory exists
+      stat:
+        path: "{{ playbook_dir }}/roles/k8s-precheck/tasks/main.yml"
+      register: precheck_tasks
+      tags: always
+
+    - name: Display result
+      debug:
+        var: precheck_tasks
+      tags: always
+
+    - name: Show the content of k8s-precheck/tasks/main.yml
+      shell: "cat {{ playbook_dir }}/roles/k8s-precheck/tasks/main.yml"
+      register: file_content
+      changed_when: false
+      tags: always
+
+    - name: Display file content
+      debug:
+        var: file_content.stdout_lines
+      tags: always
+
+    - name: Run a direct test command
+      shell: ss -Hltn '( sport = :6443 or sport = :10259 or sport = :10257 or sport = :10250 or sport = :2379 or sport = :2380 )' | grep LISTEN || true
+      register: ports_check
+      changed_when: false
+      tags: always
+      
+    - name: Show ports output
+      debug:
+        var: ports_check
+      tags: always

@@ -1,0 +1,6 @@
+---
+# VERY VISIBLE TEST TASK
+- name: SUPER VISIBLE TEST TASK
+  debug:
+    msg: "THIS IS A VERY VISIBLE TEST TASK FROM K8S-PRECHECK ROLE"
+  tags: k8s_precheck
