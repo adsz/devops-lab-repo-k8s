@@ -1,4 +1,3 @@
-# /repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/roles/k8s-precheck/tasks/main.yml
 ---
 # *** TASKS TO CHECK FOR PREVIOUS K8S INSTALLATION (WITHOUT CLEANUP) ***
 - name: Test k8s-precheck role
@@ -13,7 +12,7 @@
     env_issues: []
   tags: k8s_precheck
 
-# Check 1: Ports
+# Check 1: Ports - This is more reliable as it checks ACTUAL listening ports
 - name: Sprawdź, czy krytyczne porty Kubernetes są już zajęte
   become: yes
   shell: ss -Hltn '( sport = :6443 or sport = :10259 or sport = :10257 or sport = :10250 or sport = :2379 or sport = :2380 )' | grep LISTEN || true
@@ -24,7 +23,7 @@
 - name: Check ports status
   set_fact:
     env_clean: false
-    env_issues: "{{ env_issues + ['Krytyczne porty Kubernetes są już zajęte'] }}"
+    env_issues: "{{ env_issues + ['Krytyczne porty Kubernetes są już zajęte: ' + k8s_ports_check.stdout] }}"
   when: k8s_ports_check.stdout != ""
   tags: k8s_precheck
 
@@ -37,58 +36,70 @@
 # Check 2: Manifests
 - name: Sprawdź, czy katalog manifestów Kubernetes (/etc/kubernetes/manifests) zawiera pliki
   become: yes
-  ansible.builtin.find:
+  stat:
+    path: /etc/kubernetes/manifests
+  register: k8s_manifests_dir
+  tags: k8s_precheck
+
+- name: Check Kubernetes manifests files
+  become: yes
+  find:
     paths: /etc/kubernetes/manifests
     file_type: file
     patterns: '*.yaml'
   register: k8s_manifests_check
-  changed_when: false
-  ignore_errors: true
+  when: k8s_manifests_dir.stat.exists
   tags: k8s_precheck
 
 - name: Check manifests status
   set_fact:
     env_clean: false
     env_issues: "{{ env_issues + ['Katalog /etc/kubernetes/manifests już istnieje i zawiera pliki'] }}"
-  when: k8s_manifests_check.matched > 0
+  when: k8s_manifests_dir.stat.exists and (k8s_manifests_check.matched | default(0)) > 0
   tags: k8s_precheck
 
 - name: Debug k8s_manifests_check
   debug:
     var: k8s_manifests_check.files
-  when: k8s_manifests_check is defined
+  when: k8s_manifests_check is defined and k8s_manifests_dir.stat.exists
   tags: k8s_precheck
 
 # Check 3: ETCD
-- name: Sprawdź, czy katalog danych etcd (/var/lib/etcd) istnieje i nie jest pusty
+- name: Sprawdź, czy katalog danych etcd (/var/lib/etcd) istnieje
   become: yes
-  ansible.builtin.find:
+  stat:
+    path: /var/lib/etcd
+  register: k8s_etcd_dir
+  tags: k8s_precheck
+
+- name: Check etcd directory content
+  become: yes
+  find:
     paths: /var/lib/etcd
     file_type: any
     hidden: yes
     recurse: no
   register: k8s_etcd_dir_check
-  changed_when: false
-  ignore_errors: true
+  when: k8s_etcd_dir.stat.exists
   tags: k8s_precheck
 
 - name: Check etcd status
   set_fact:
     env_clean: false
     env_issues: "{{ env_issues + ['Katalog /var/lib/etcd już istnieje i zawiera dane'] }}"
-  when: k8s_etcd_dir_check.matched > 0
+  when: k8s_etcd_dir.stat.exists and (k8s_etcd_dir_check.matched | default(0)) > 0
   tags: k8s_precheck
 
 - name: Debug k8s_etcd_dir_check
   debug:
     var: k8s_etcd_dir_check.files
-  when: k8s_etcd_dir_check is defined
+  when: k8s_etcd_dir_check is defined and k8s_etcd_dir.stat.exists
   tags: k8s_precheck
 
 # Check 4: Kubelet
 - name: Sprawdź, czy usługa kubelet jest aktywna
   become: yes
-  ansible.builtin.service_facts:
+  service_facts:
   register: service_facts
   tags: k8s_precheck
 
@@ -113,6 +124,26 @@
   when: k8s_config_check.stat.exists
   tags: k8s_precheck
 
+# Check 6: Running Kubernetes Processes
+- name: Check for running Kubernetes processes
+  shell: "ps aux | grep -E 'kube-apiserver|kube-scheduler|kube-controller|etcd' | grep -v grep || true"
+  register: k8s_processes
+  changed_when: false
+  tags: k8s_precheck
+
+- name: Check k8s processes status
+  set_fact:
+    env_clean: false
+    env_issues: "{{ env_issues + ['Wykryto działające procesy Kubernetes'] }}"
+  when: k8s_processes.stdout != ""
+  tags: k8s_precheck
+
+- name: Debug k8s processes
+  debug:
+    var: k8s_processes.stdout_lines
+  when: k8s_processes.stdout != ""
+  tags: k8s_precheck
+
 # Final status report
 - name: Wyświetl podsumowanie czystego środowiska
   debug:
@@ -127,5 +158,86 @@
       {{ env_issues | join('\n- ') }}
       
       Zaleca się wyczyszczenie środowiska przed ponowną instalacją.
+      Użyj parametru --extra-vars "reset_kubernetes=true" aby automatycznie wyczyścić środowisko.
   when: not env_clean
+  tags: k8s_precheck
+
+# Reset Kubernetes if requested
+- name: Reset Kubernetes installation if requested
+  block:
+    - name: Informing about Kubernetes reset
+      debug:
+        msg: "Resetowanie instalacji Kubernetes..."
+
+    - name: Running kubeadm reset
+      command: kubeadm reset -f
+      ignore_errors: true
+
+    - name: Stop and disable kubelet
+      systemd:
+        name: kubelet
+        state: stopped
+        enabled: no
+      ignore_errors: true
+
+    - name: Remove Kubernetes directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/
+        - /var/lib/kubelet/
+        - /var/lib/etcd/
+        - /var/run/kubernetes/
+        - /etc/cni/
+        - /opt/cni/
+        - /var/lib/cni/
+        - /var/run/calico/
+        - /var/lib/calico/
+        - /run/flannel/
+        - /etc/flannel/
+        - /var/lib/weave/
+        - /opt/weave/
+        - /home/ansible/.kube/
+        - /home/ubuntu/.kube/
+        - /root/.kube/
+      ignore_errors: true
+
+    - name: Remove remaining CNI configurations
+      command: rm -rf /etc/cni/net.d/*
+      ignore_errors: true
+
+    - name: Clean up iptables rules
+      shell: |
+        iptables -F
+        iptables -t nat -F
+        iptables -t mangle -F
+        iptables -X
+      ignore_errors: true
+
+    - name: Clean up IPVS table
+      shell: |
+        ipvsadm -C
+      ignore_errors: true
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+      ignore_errors: true
+
+    - name: Reset system network configuration
+      shell: |
+        ip link delete cni0 || true
+        ip link delete flannel.1 || true
+        ip link delete weave || true
+        ip link delete calico1 || true
+      ignore_errors: true
+
+    - name: Reboot system to ensure clean state
+      reboot:
+        reboot_timeout: 600
+      ignore_errors: true
+
+  when: reset_kubernetes is defined and reset_kubernetes | bool
   tags: k8s_precheck

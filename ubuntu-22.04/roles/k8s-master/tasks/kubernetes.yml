@@ -1,3 +1,4 @@
+# /repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/roles/k8s-master/tasks/kubernetes.yml
 ---
 - name: Ensure /etc/hosts has k8s-master entry
   lineinfile:
@@ -109,7 +110,7 @@
 - name: Remove swap from /etc/fstab
   lineinfile:
     path: /etc/fstab
-    regexp: '^.*\\sswap\\s'
+    regexp: '^.*\sswap\s'
     state: absent
   tags: kubernetes
 
@@ -207,6 +208,25 @@
     remote_src: yes
   tags: kubernetes
 
+- name: Create kube config directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0700'
+  tags: kubernetes
+
+- name: Copy admin.conf for ubuntu user
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+    remote_src: yes
+  tags: kubernetes
+
 - name: Wait for Kubernetes API server to be available
   command: kubectl get nodes
   environment:
@@ -247,7 +267,8 @@
     dest: /tmp/k8s-join-command.sh
   delegate_to: "{{ item }}"
   loop:
-    - worker_node_1
-    - worker_node_2
+    - worker-node-1
+    - worker-node-2
   when: join_command.stdout != ""
+  ignore_errors: true
   tags: kubernetes
