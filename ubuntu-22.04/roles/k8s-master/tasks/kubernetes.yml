@@ -1,0 +1,253 @@
+---
+- name: Ensure /etc/hosts has k8s-master entry
+  lineinfile:
+    path: /etc/hosts
+    line: "192.168.0.180 k8s-master"
+    state: present
+  tags: kubernetes
+
+- name: Install ntpdate
+  apt:
+    name: ntpdate
+    state: present
+  tags: kubernetes
+
+- name: Sync system time
+  command: ntpdate ntp.ubuntu.com
+  tags: kubernetes
+
+- name: Install dependencies
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+  tags: kubernetes
+
+- name: Install containerd
+  apt:
+    name: containerd
+    state: present
+  tags: kubernetes
+
+- name: Ensure containerd configuration directory exists
+  file:
+    path: /etc/containerd
+    state: directory
+    mode: '0755'
+  tags: kubernetes
+
+- name: Generate containerd default config
+  shell: containerd config default > /etc/containerd/config.toml
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Patch containerd config for sandbox image
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = ".*"'
+    replace: 'sandbox_image = "{{ containerd_sandbox_image }}"'
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Set SystemdCgroup = true in containerd config
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Enable and start containerd
+  systemd:
+    name: containerd
+    enabled: yes
+    state: started
+  tags: kubernetes
+
+- name: Add Kubernetes apt key
+  apt_key:
+    url: "{{ kubernetes_apt_key_url }}"
+    state: present
+  tags: kubernetes
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: "{{ kubernetes_apt_repo }}"
+    state: present
+    filename: kubernetes
+  tags: kubernetes
+
+- name: Install Kubernetes components
+  apt:
+    name:
+      - kubeadm={{ kubernetes_version }}
+      - kubelet={{ kubernetes_version }}
+      - kubectl={{ kubernetes_version }}
+    state: present
+    update_cache: yes
+  tags: kubernetes
+
+- name: Hold Kubernetes packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+  tags: kubernetes
+
+- name: Disable swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+  changed_when: ansible_swaptotal_mb > 0
+  tags: kubernetes
+
+- name: Remove swap from /etc/fstab
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^.*\\sswap\\s'
+    state: absent
+  tags: kubernetes
+
+- name: Load kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+  tags: kubernetes
+
+- name: Persist kernel modules
+  copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/containerd.conf
+    mode: '0644'
+  tags: kubernetes
+
+- name: Configure sysctl for Kubernetes
+  template:
+    src: kubernetes-sysctl.conf.j2
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    mode: '0644'
+  notify: apply_sysctl
+  tags: kubernetes
+
+- name: Apply sysctl settings
+  command: sysctl --system
+  changed_when: true
+  tags: kubernetes
+
+- name: Ensure net.ipv4.ip_forward is 1
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes
+  tags: kubernetes
+
+- name: Pre-pull kubeadm images
+  command: kubeadm config images pull --kubernetes-version={{ kubernetes_semver }}
+  retries: 3
+  delay: 10
+  register: image_pull
+  until: image_pull.rc == 0
+  tags: kubernetes
+
+- name: Generate kubeadm config file
+  template:
+    src: kubeadm-config.yaml.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    mode: '0644'
+  tags: kubernetes
+
+- name: Check for processes listening on Kubernetes ports
+  shell: |
+    ss -tuln | grep -E '6443|10259|10257|10250|2379|2380'
+  register: port_check
+  failed_when: false
+  changed_when: false
+  tags: kubernetes
+
+- name: Output port check results
+  debug:
+    var: port_check.stdout_lines
+  tags: kubernetes
+
+- name: Initialize Kubernetes master node with config
+  command: kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs --v=5
+  register: kubeadm_init
+  retries: 3
+  delay: 30
+  until: kubeadm_init.rc == 0
+  tags: kubernetes
+
+- name: Create kube config directory for ansible user
+  file:
+    path: /home/ansible/.kube
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0700'
+  tags: kubernetes
+
+- name: Copy admin.conf for ansible user
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ansible/.kube/config
+    owner: ansible
+    group: ansible
+    mode: '0600'
+    remote_src: yes
+  tags: kubernetes
+
+- name: Wait for Kubernetes API server to be available
+  command: kubectl get nodes
+  environment:
+    KUBECONFIG: /home/ansible/.kube/config
+  register: api_check
+  retries: 30
+  delay: 5
+  until: api_check.rc == 0
+  tags: kubernetes
+
+- name: Install Calico CNI
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/calico.yaml
+  environment:
+    KUBECONFIG: /home/ansible/.kube/config
+  retries: 5
+  delay: 5
+  register: calico_apply
+  until: calico_apply.rc == 0
+  tags: kubernetes
+
+- name: Generate join command for workers
+  command: kubeadm token create --print-join-command
+  register: join_command
+  tags: kubernetes
+
+- name: Save join command for ansible user
+  copy:
+    content: "{{ join_command.stdout }}"
+    dest: /home/ansible/k8s-join-command.sh
+    owner: ansible
+    group: ansible
+    mode: '0700'
+  tags: kubernetes
+
+- name: Copy join command to worker nodes
+  copy:
+    content: "{{ join_command.stdout }}"
+    dest: /tmp/k8s-join-command.sh
+  delegate_to: "{{ item }}"
+  loop:
+    - worker_node_1
+    - worker_node_2
+  when: join_command.stdout != ""
+  tags: kubernetes

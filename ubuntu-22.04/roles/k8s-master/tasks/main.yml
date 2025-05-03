@@ -1,0 +1,6 @@
+# roles/k8s-master/tasks/main.yml
+---
+- name: Configure Kubernetes master
+  import_tasks: kubernetes.yml
+  tags: kubernetes
+

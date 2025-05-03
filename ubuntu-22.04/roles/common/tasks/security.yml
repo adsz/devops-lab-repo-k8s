@@ -1,0 +1,56 @@
+---
+# Apply security hardening to the system
+- name: Install security packages
+  apt:
+    name:
+      - ufw
+      - fail2ban
+      - net-tools
+      - unattended-upgrades
+    state: present
+  tags: security
+
+# - name: Configure SSH settings
+#   lineinfile:
+#     path: /etc/ssh/sshd_config
+#     regexp: "{{ item.regexp }}"
+#     line: "{{ item.line }}"
+#     state: present
+#     validate: 'sshd -t -f %s'
+#   loop:
+#     - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin {{ ssh_permit_root_login }}' }
+#     - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication {{ ssh_password_authentication }}' }
+#     - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+#     - { regexp: '^#?AllowUsers', line: 'AllowUsers {{ ssh_allowed_users | join(" ") }}' }
+#   notify: restart_ssh
+#   tags: security
+
+- name: Enable UFW and allow specified ports
+  ufw:
+    state: enabled
+    policy: deny
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_allowed_ports }}"
+  tags: security
+
+- name: Enable unattended upgrades
+  command: dpkg-reconfigure --priority=low unattended-upgrades
+  args:
+    creates: /etc/apt/apt.conf.d/20auto-upgrades
+  tags: security
+
+- name: Configure fail2ban for SSH
+  copy:
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = {{ fail2ban_maxretry }}
+      findtime = {{ fail2ban_findtime }}
+      bantime = {{ fail2ban_bantime }}
+    dest: /etc/fail2ban/jail.d/sshd.conf
+    mode: '0644'
+  notify: restart_fail2ban
+  tags: security

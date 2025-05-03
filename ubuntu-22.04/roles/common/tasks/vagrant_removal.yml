@@ -1,0 +1,41 @@
+---
+# Remove vagrant user and associated files
+- name: Remove vagrant user
+  user:
+    name: vagrant
+    state: absent
+    remove: yes
+    force: yes
+  ignore_errors: yes
+  tags: vagrant_removal
+
+- name: Ensure vagrant is removed from /etc/passwd
+  lineinfile:
+    path: /etc/passwd
+    regexp: '^vagrant:'
+    state: absent
+  ignore_errors: yes
+  tags: vagrant_removal
+
+- name: Ensure vagrant is removed from /etc/shadow
+  lineinfile:
+    path: /etc/shadow
+    regexp: '^vagrant:'
+    state: absent
+  ignore_errors: yes
+  tags: vagrant_removal
+
+- name: Ensure vagrant is removed from /etc/group
+  lineinfile:
+    path: /etc/group
+    regexp: '^vagrant:'
+    state: absent
+  ignore_errors: yes
+  tags: vagrant_removal
+
+- name: Remove vagrant home directory
+  file:
+    path: /home/vagrant
+    state: absent
+  ignore_errors: yes
+  tags: vagrant_removal

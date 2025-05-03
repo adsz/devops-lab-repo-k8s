@@ -1,0 +1,10 @@
+---
+# Configure Kubernetes worker node
+- name: Include common role for shared setup
+  include_role:
+    name: common
+  tags: [packages, security, vagrant_removal]
+
+- name: Configure Kubernetes worker
+  include_tasks: kubernetes.yml
+  tags: kubernetes

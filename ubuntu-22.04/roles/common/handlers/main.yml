@@ -1,0 +1,17 @@
+# roles/k8s-master/handlers/main.yml
+- name: Restart SSH
+  systemd:
+    name: ssh
+    state: restarted
+  listen: restart_ssh
+
+- name: Restart fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted
+  listen: restart_fail2ban
+
+- name: Restart systemd-timesyncd
+  systemd:
+    name: systemd-timesyncd
+    state: restarted

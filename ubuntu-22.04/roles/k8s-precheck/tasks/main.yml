@@ -1,0 +1,74 @@
+---
+# *** ZADANIA SPRAWDZAJĄCE ISTNIENIE POPRZEDNIEJ INSTALACJI K8S (BEZ CZYSZCZENIA) ***
+# - name: Test k8s-precheck role
+#   debug:
+#     msg: "Running k8s-precheck role"
+#   tags: k8s_precheck
+
+# - name: Sprawdź, czy krytyczne porty Kubernetes są już zajęte
+#   become: yes
+#   shell: ss -Hltn '( sport = :6443 or sport = :10259 or sport = :10257 or sport = :10250 or sport = :2379 or sport = :2380 )' | grep LISTEN || true
+#   register: k8s_ports_check
+#   changed_when: false
+#   failed_when: k8s_ports_check.stdout != ""
+#   tags: k8s_precheck
+
+# - name: Debug k8s_ports_check
+#   debug:
+#     var: k8s_ports_check.stdout_lines
+#   when: k8s_ports_check is defined
+#   tags: k8s_precheck
+
+# - name: Sprawdź, czy katalog manifestów Kubernetes (/etc/kubernetes/manifests) zawiera pliki
+#   become: yes
+#   ansible.builtin.find:
+#     paths: /etc/kubernetes/manifests
+#     file_type: file
+#     patterns: '*.yaml'
+#   register: k8s_manifests_check
+#   changed_when: false
+#   failed_when: k8s_manifests_check.matched > 0
+#   ignore_errors: true
+#   tags: k8s_precheck
+
+# - name: Debug k8s_manifests_check
+#   debug:
+#     var: k8s_manifests_check.files
+#   when: k8s_manifests_check is defined
+#   tags: k8s_precheck
+
+# - name: Sprawdź, czy katalog danych etcd (/var/lib/etcd) istnieje i nie jest pusty
+#   become: yes
+#   ansible.builtin.find:
+#     paths: /var/lib/etcd
+#     file_type: any
+#     hidden: yes
+#     recurse: no
+#   register: k8s_etcd_dir_check
+#   changed_when: false
+#   failed_when: k8s_etcd_dir_check.matched > 0
+#   ignore_errors: true
+#   tags: k8s_precheck
+
+# - name: Debug k8s_etcd_dir_check
+#   debug:
+#     var: k8s_etcd_dir_check.files
+#   when: k8s_etcd_dir_check is defined
+#   tags: k8s_precheck
+
+# - name: Sprawdź, czy usługa kubelet jest aktywna
+#   become: yes
+#   ansible.builtin.service_facts:
+#   register: service_facts
+#   tags: k8s_precheck
+
+# - name: Ustaw zmienną k8s_kubelet_check.rc
+#   set_fact:
+#     k8s_kubelet_check: "{{ {'rc': 0 if 'kubelet' in service_facts.ansible_facts.services and service_facts.ansible_facts.services['kubelet'].state == 'running' else 3} }}"
+#   tags: k8s_precheck
+
+# - name: Debug k8s_kubelet_check
+#   debug:
+#     var: k8s_kubelet_check.rc
+#   when: k8s_kubelet_check is defined
+#   tags: k8s_precheck

@@ -1,0 +1,67 @@
+---
+# Configure time synchronization using systemd-timesyncd
+- name: Ensure systemd-timesyncd is installed
+  apt:
+    name: systemd
+    state: present
+  retries: 3
+  delay: 5
+  register: systemd_install
+  until: systemd_install is success
+  tags: packages
+
+- name: Configure NTP servers for systemd-timesyncd
+  template:
+    src: timesyncd.conf.j2
+    dest: /etc/systemd/timesyncd.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart systemd-timesyncd
+  tags: packages
+
+- name: Ensure systemd-timesyncd is enabled and started
+  systemd:
+    name: systemd-timesyncd
+    enabled: yes
+    state: started
+  tags: packages
+
+- name: Enable NTP synchronization
+  command: timedatectl set-ntp true
+  changed_when: true
+  tags: packages
+
+- name: Set timezone to Europe/Warsaw
+  command: timedatectl set-timezone Europe/Warsaw
+  changed_when: true
+  tags: packages
+
+- name: Force immediate time sync
+  shell: timedatectl timesync-status | grep 'System clock synchronized' || systemctl restart systemd-timesyncd
+  changed_when: true
+  become: true
+  tags: packages
+
+
+# Update and upgrade system packages
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: "{{ apt_cache_valid_time }}"
+  register: apt_update
+  retries: 3
+  delay: 5
+  until: apt_update is success
+  tags: packages
+
+- name: Upgrade all packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: apt_upgrade
+  retries: 3
+  delay: 5
+  until: apt_upgrade is success
+  tags: packages

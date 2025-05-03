@@ -1,0 +1,6 @@
+---
+# Default Kubernetes settings
+kubernetes_version: "1.29"
+k8s_master_ip: "192.168.0.180"
+pod_network_cidr: "10.244.0.0/16"
+containerd_sandbox_image: "registry.k8s.io/pause:3.8"

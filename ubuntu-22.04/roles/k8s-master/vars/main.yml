@@ -1,0 +1,4 @@
+# roles/k8s-master/vars/main.yml
+---
+kubernetes_apt_key_url: "https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key"
+kubernetes_apt_repo: "deb https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
