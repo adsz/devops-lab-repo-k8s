@@ -2,3 +2,4 @@ wip/*
 **/.vagrant/
 **/.venv
 *bak*
+*.log
