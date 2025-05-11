@@ -267,8 +267,8 @@
     dest: /tmp/k8s-join-command.sh
   delegate_to: "{{ item }}"
   loop:
-    - worker-node-1
-    - worker-node-2
+    - k8s-worker-node-1
+    - k8s-worker-node-2
   when: join_command.stdout != ""
   ignore_errors: true
   tags: kubernetes

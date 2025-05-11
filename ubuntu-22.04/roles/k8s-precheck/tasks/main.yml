@@ -24,13 +24,12 @@
   set_fact:
     env_clean: false
     env_issues: "{{ env_issues + ['Krytyczne porty Kubernetes są już zajęte: ' + k8s_ports_check.stdout] }}"
-  when: k8s_ports_check.stdout != ""
+  when: k8s_ports_check.stdout | trim != ""
   tags: k8s_precheck
 
 - name: Debug k8s_ports_check
   debug:
     var: k8s_ports_check.stdout_lines
-  when: k8s_ports_check is defined
   tags: k8s_precheck
 
 # Check 2: Manifests
@@ -49,6 +48,7 @@
     patterns: '*.yaml'
   register: k8s_manifests_check
   when: k8s_manifests_dir.stat.exists
+  ignore_errors: true
   tags: k8s_precheck
 
 - name: Check manifests status
@@ -61,7 +61,7 @@
 - name: Debug k8s_manifests_check
   debug:
     var: k8s_manifests_check.files
-  when: k8s_manifests_check is defined and k8s_manifests_dir.stat.exists
+  when: k8s_manifests_dir.stat.exists and (k8s_manifests_check.matched | default(0)) > 0
   tags: k8s_precheck
 
 # Check 3: ETCD
@@ -81,6 +81,7 @@
     recurse: no
   register: k8s_etcd_dir_check
   when: k8s_etcd_dir.stat.exists
+  ignore_errors: true
   tags: k8s_precheck
 
 - name: Check etcd status
@@ -93,21 +94,20 @@
 - name: Debug k8s_etcd_dir_check
   debug:
     var: k8s_etcd_dir_check.files
-  when: k8s_etcd_dir_check is defined and k8s_etcd_dir.stat.exists
+  when: k8s_etcd_dir.stat.exists and (k8s_etcd_dir_check.matched | default(0)) > 0
   tags: k8s_precheck
 
 # Check 4: Kubelet
 - name: Sprawdź, czy usługa kubelet jest aktywna
   become: yes
   service_facts:
-  register: service_facts
   tags: k8s_precheck
 
 - name: Check kubelet status
   set_fact:
     env_clean: false
     env_issues: "{{ env_issues + ['Usługa kubelet jest już uruchomiona'] }}"
-  when: "'kubelet' in service_facts.ansible_facts.services and service_facts.ansible_facts.services['kubelet'].state == 'running'"
+  when: "'kubelet.service' in ansible_facts.services and ansible_facts.services['kubelet.service'].state == 'running'"
   tags: k8s_precheck
 
 # Check 5: Kubernetes config
@@ -135,13 +135,13 @@
   set_fact:
     env_clean: false
     env_issues: "{{ env_issues + ['Wykryto działające procesy Kubernetes'] }}"
-  when: k8s_processes.stdout != ""
+  when: k8s_processes.stdout | trim != ""
   tags: k8s_precheck
 
 - name: Debug k8s processes
   debug:
     var: k8s_processes.stdout_lines
-  when: k8s_processes.stdout != ""
+  when: k8s_processes.stdout | trim != ""
   tags: k8s_precheck
 
 # Final status report
