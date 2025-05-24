@@ -1,6 +1,8 @@
 ---
 # Default Kubernetes settings
-kubernetes_version: "1.29"
+kubernetes_version: "1.29.15-1.1"
 k8s_master_ip: "192.168.0.180"
 pod_network_cidr: "10.244.0.0/16"
-containerd_sandbox_image: "registry.k8s.io/pause:3.8"
+containerd_sandbox_image: "registry.k8s.io/pause:3.9"
+kubernetes_apt_key_url: "https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key"
+kubernetes_apt_repo: "deb https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"

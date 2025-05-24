@@ -1,4 +1,3 @@
-# /repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/roles/k8s-master/tasks/kubernetes.yml
 ---
 - name: Ensure /etc/hosts has k8s-master entry
   lineinfile:
@@ -69,9 +68,10 @@
   tags: kubernetes
 
 - name: Add Kubernetes apt key
-  apt_key:
+  get_url:
     url: "{{ kubernetes_apt_key_url }}"
-    state: present
+    dest: /etc/apt/trusted.gpg.d/kubernetes.asc
+    mode: '0644'
   tags: kubernetes
 
 - name: Add Kubernetes apt repository
@@ -110,7 +110,7 @@
 - name: Remove swap from /etc/fstab
   lineinfile:
     path: /etc/fstab
-    regexp: '^.*\sswap\s'
+    regexp: '^.*\\sswap\\s'
     state: absent
   tags: kubernetes
 
@@ -187,6 +187,8 @@
   retries: 3
   delay: 30
   until: kubeadm_init.rc == 0
+  args:
+    creates: /etc/kubernetes/admin.conf
   tags: kubernetes
 
 - name: Create kube config directory for ansible user
@@ -208,25 +210,6 @@
     remote_src: yes
   tags: kubernetes
 
-- name: Create kube config directory for ubuntu user
-  file:
-    path: /home/ubuntu/.kube
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: '0700'
-  tags: kubernetes
-
-- name: Copy admin.conf for ubuntu user
-  copy:
-    src: /etc/kubernetes/admin.conf
-    dest: /home/ubuntu/.kube/config
-    owner: ubuntu
-    group: ubuntu
-    mode: '0600'
-    remote_src: yes
-  tags: kubernetes
-
 - name: Wait for Kubernetes API server to be available
   command: kubectl get nodes
   environment:
@@ -238,7 +221,7 @@
   tags: kubernetes
 
 - name: Install Calico CNI
-  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/calico.yaml
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml
   environment:
     KUBECONFIG: /home/ansible/.kube/config
   retries: 5
@@ -270,5 +253,4 @@
     - k8s-worker-node-1
     - k8s-worker-node-2
   when: join_command.stdout != ""
-  ignore_errors: true
   tags: kubernetes
