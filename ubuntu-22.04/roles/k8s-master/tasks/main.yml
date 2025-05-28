@@ -1,6 +1,10 @@
-# roles/k8s-master/tasks/main.yml
 ---
-- name: Configure Kubernetes master
-  import_tasks: kubernetes.yml
-  tags: kubernetes
+# Configure Kubernetes master node
+- name: Include common role for shared setup
+  include_role:
+    name: common
+  tags: [packages, security, vagrant_removal]
 
+- name: Configure Kubernetes master
+  include_tasks: kubernetes.yml
+  tags: kubernetes

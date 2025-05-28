@@ -1,9 +1,9 @@
 ---
 - name: Configure Kubernetes master node
-  hosts: k8s_masters
+  hosts: all
   become: yes
   roles:
-    - { role: common, tags: [packages, security, vagrant_removal] }
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
     - { role: k8s-precheck, tags: [k8s_precheck] }
     - { role: k8s-master, tags: [kubernetes] }
     

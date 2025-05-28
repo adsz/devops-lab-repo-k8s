@@ -1,0 +1,30 @@
+---
+- name: Deploy Kubernetes HA Cluster
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Deploy Load Balancer first
+      import_playbook: loadbalancer-playbook.yml
+
+    - name: Wait for load balancer to be ready
+      wait_for:
+        host: 192.168.0.200
+        port: 6443
+        timeout: 60
+      delegate_to: localhost
+
+- name: Configure Kubernetes Masters
+  hosts: k8s_masters
+  become: yes
+  serial: 1
+  roles:
+    - { role: common, tags: [packages, security, vagrant_removal] }
+    - { role: k8s-precheck, tags: [k8s_precheck] }
+    - { role: k8s-master, tags: [kubernetes] }
+
+- name: Configure Kubernetes Workers
+  hosts: k8s_workers
+  become: yes
+  roles:
+    - { role: common, tags: [packages, security, vagrant_removal] }
+    - { role: k8s-worker, tags: [kubernetes] }

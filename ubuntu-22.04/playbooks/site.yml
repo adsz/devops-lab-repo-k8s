@@ -1,0 +1,71 @@
+---
+- name: Deploy Kubernetes HA Cluster - Complete Installation
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          Starting Kubernetes HA Cluster deployment:
+          - Load Balancer: {{ groups['k8s_loadbalancers'] | join(', ') }}
+          - Masters: {{ groups['k8s_masters'] | join(', ') }}
+          - Workers: {{ groups['k8s_workers'] | join(', ') }}
+
+- name: Configure Load Balancer
+  hosts: k8s_loadbalancers
+  become: yes
+  roles:
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
+    - { role: loadbalancer, tags: [loadbalancer] }
+
+- name: Wait for Load Balancer VIP
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Wait for load balancer VIP to be ready
+      wait_for:
+        host: 192.168.0.200
+        port: 6443
+        timeout: 120
+        msg: "Load balancer VIP not ready"
+      ignore_errors: true
+
+- name: Configure Kubernetes Masters
+  hosts: k8s_masters
+  become: yes
+  roles:
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
+    - { role: k8s-precheck, tags: [k8s_precheck] }
+    - { role: k8s-master, tags: [kubernetes] }
+
+- name: Configure Kubernetes Workers
+  hosts: k8s_workers
+  become: yes
+  roles:
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
+    - { role: k8s-worker, tags: [kubernetes] }
+
+- name: Post-deployment verification
+  hosts: k8s_masters[0]
+  become: yes
+  become_user: ansible
+  tasks:
+    - name: Check cluster status
+      command: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: cluster_nodes
+
+    - name: Display cluster status
+      debug:
+        var: cluster_nodes.stdout_lines
+
+    - name: Check system pods
+      command: kubectl get pods -n kube-system
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: system_pods
+
+    - name: Display system pods status
+      debug:
+        var: system_pods.stdout_lines

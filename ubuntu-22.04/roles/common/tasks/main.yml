@@ -1,15 +1,13 @@
 ---
 # Common setup tasks for all nodes
 - name: Update system packages
-  import_tasks: packages.yml
-  tags: [common, packages]
-
-- name: Apply security hardening
-  import_tasks: security.yml
-  tags: [common, security]
+  include_tasks: packages.yml
+  tags: packages
 
 - name: Remove vagrant user
-  import_tasks: vagrant_removal.yml
-  tags: [common, vagrant_removal]
+  include_tasks: vagrant_removal.yml
+  tags: vagrant_removal
 
-
+- name: Apply security hardening
+  include_tasks: security.yml
+  tags: security

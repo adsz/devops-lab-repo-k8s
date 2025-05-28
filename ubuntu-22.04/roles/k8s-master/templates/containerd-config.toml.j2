@@ -1,36 +1,4 @@
-# roles/k8s-master/templates/containerd-config.toml.j2
 [plugins."io.containerd.grpc.v1.cri"]
   sandbox_image = "{{ containerd_sandbox_image }}"
-  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-    runtime_type = "io.containerd.runc.v2"
-    [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-      SystemdCgroup = true
-
-# roles/k8s-master/templates/kubernetes-sysctl.conf.j2
-net.bridge.bridge-nf-call-iptables = 1
-net.ipv4.ip_forward = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-
-# roles/k8s-master/templates/kubeadm-config.yaml.j2
-apiVersion: kubeadm.k8s.io/v1beta3
-kind: InitConfiguration
-localAPIEndpoint:
-  advertiseAddress: "{{ ansible_host }}"
-  bindPort: 6443
-nodeRegistration:
-  criSocket: unix:///var/run/containerd/containerd.sock
-  name: "{{ inventory_hostname }}"
-  kubeletExtraArgs:
-    cgroup-driver: systemd
----
-apiVersion: kubeadm.k8s.io/v1beta3
-kind: ClusterConfiguration
-kubernetesVersion: v{{ kubernetes_semver }}
-controlPlaneEndpoint: "{{ control_plane_endpoint }}"
-networking:
-  podSubnet: "{{ pod_network_cidr }}"
-imageRepository: registry.k8s.io
----
-apiVersion: kubeproxy.config.k8s.io/v1alpha1
-kind: KubeProxyConfiguration
-mode: iptables
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"

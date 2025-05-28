@@ -1,8 +1,8 @@
 ---
 # Default settings for common role
 apt_cache_valid_time: 3600
-# ssh_permit_root_login: "no"
-# ssh_password_authentication: "no"
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
 ssh_allowed_users:
   - ansible
   - ubuntu
@@ -10,9 +10,6 @@ ufw_allowed_ports:
   - port: 22
     proto: tcp
     comment: SSH
-  - port: 123 
-    proto: udp
-    comment: NTP
 fail2ban_maxretry: 3
 fail2ban_findtime: 600
 fail2ban_bantime: 3600

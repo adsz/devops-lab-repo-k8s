@@ -1,0 +1,33 @@
+global_defs {
+    router_id LB_{{ ansible_hostname }}
+    script_user root
+    enable_script_security
+}
+
+vrrp_script chk_haproxy {
+    script "/bin/kill -0 `cat /var/run/haproxy.pid`"
+    interval 2
+    weight 2
+    fall 3
+    rise 2
+}
+
+vrrp_instance VI_1 {
+    state {% if inventory_hostname == groups['k8s_loadbalancers'][0] %}MASTER{% else %}BACKUP{% endif %}
+    
+    interface {{ ansible_default_ipv4.interface }}
+    virtual_router_id 51
+    priority {% if inventory_hostname == groups['k8s_loadbalancers'][0] %}150{% else %}100{% endif %}
+    
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass k8s_ha_pass
+    }
+    virtual_ipaddress {
+        192.168.0.200/24
+    }
+    track_script {
+        chk_haproxy
+    }
+}

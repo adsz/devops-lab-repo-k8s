@@ -1,19 +1,36 @@
----
 all:
   children:
+    k8s_ha:
+      children:
+        k8s_loadbalancers:
+        k8s_masters:
+        k8s_workers:
+
+    k8s_loadbalancers:
+      hosts:
+        k8s-lb:
+          ansible_host: 192.168.0.175
+          ansible_user: ansible
+          ansible_ssh_private_key_file: /root/.ssh/id_rsa
+
     k8s_masters:
       hosts:
-        k8s-master:
+        k8s-master-1:
           ansible_host: 192.168.0.180
           ansible_user: ansible
           ansible_ssh_private_key_file: /root/.ssh/id_rsa
-    k8s_workers:
-      hosts:
-        k8s-worker-node-1:
+        k8s-master-2:
           ansible_host: 192.168.0.181
           ansible_user: ansible
           ansible_ssh_private_key_file: /root/.ssh/id_rsa
-        k8s-worker-node-2:
-          ansible_host: 192.168.0.182
+
+    k8s_workers:
+      hosts:
+        k8s-worker-1:
+          ansible_host: 192.168.0.190
+          ansible_user: ansible
+          ansible_ssh_private_key_file: /root/.ssh/id_rsa
+        k8s-worker-2:
+          ansible_host: 192.168.0.191
           ansible_user: ansible
           ansible_ssh_private_key_file: /root/.ssh/id_rsa

@@ -8,6 +8,10 @@ nodeRegistration:
   name: "{{ inventory_hostname }}"
   kubeletExtraArgs:
     cgroup-driver: systemd
+    pod-infra-container-image: "{{ containerd_sandbox_image }}"
+{% if certificate_key is defined %}
+certificateKey: "{{ certificate_key }}"
+{% endif %}
 
 ---
 apiVersion: kubeadm.k8s.io/v1beta3
@@ -16,9 +20,27 @@ kubernetesVersion: v{{ kubernetes_semver }}
 controlPlaneEndpoint: "{{ control_plane_endpoint }}"
 networking:
   podSubnet: "{{ pod_network_cidr }}"
+  serviceSubnet: "10.96.0.0/12"
 imageRepository: registry.k8s.io
+etcd:
+  local:
+    dataDir: "/var/lib/etcd"
+apiServer:
+  timeoutForControlPlane: 4m0s
+  certSANs:
+    - "127.0.0.1"
+    - "{{ control_plane_endpoint.split(':')[0] }}"
+{% for host in groups['k8s_masters'] %}
+    - "{{ hostvars[host]['ansible_host'] }}"
+    - "{{ host }}"
+{% endfor %}
 
 ---
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration
 mode: iptables
+
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd

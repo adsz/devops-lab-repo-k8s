@@ -5,7 +5,6 @@
     name:
       - ufw
       - fail2ban
-      - net-tools
       - unattended-upgrades
     state: present
   tags: security
