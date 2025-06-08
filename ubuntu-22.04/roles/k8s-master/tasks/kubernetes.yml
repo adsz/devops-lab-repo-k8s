@@ -1,5 +1,19 @@
 ---
-# Configure Kubernetes master node with kubeadm
+- name: Ensure /etc/hosts has all master entries
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[item]['ansible_host'] }} {{ item }}"
+    state: present
+  loop: "{{ groups['k8s_masters'] }}"
+  tags: kubernetes
+
+- name: Add control plane endpoint to /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ control_plane_endpoint.split(':')[0] }} k8s-api.local"
+    state: present
+  tags: kubernetes
+
 - name: Install dependencies
   apt:
     name:
@@ -23,11 +37,24 @@
     mode: '0755'
   tags: kubernetes
 
-- name: Configure containerd
-  template:
-    src: containerd-config.toml.j2
-    dest: /etc/containerd/config.toml
-    mode: '0644'
+- name: Generate containerd default config
+  shell: containerd config default > /etc/containerd/config.toml
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Patch containerd config for sandbox image
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = ".*"'
+    replace: 'sandbox_image = "{{ containerd_sandbox_image }}"'
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Set SystemdCgroup = true in containerd config
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
   notify: restart_containerd
   tags: kubernetes
 
@@ -39,9 +66,10 @@
   tags: kubernetes
 
 - name: Add Kubernetes apt key
-  apt_key:
+  get_url:
     url: "{{ kubernetes_apt_key_url }}"
-    state: present
+    dest: /etc/apt/trusted.gpg.d/kubernetes.asc
+    mode: '0644'
   tags: kubernetes
 
 - name: Add Kubernetes apt repository
@@ -54,9 +82,9 @@
 - name: Install Kubernetes components
   apt:
     name:
-      - kubeadm={{ kubernetes_version }}.*
-      - kubelet={{ kubernetes_version }}.*
-      - kubectl={{ kubernetes_version }}.*
+      - kubeadm={{ kubernetes_version }}
+      - kubelet={{ kubernetes_version }}
+      - kubectl={{ kubernetes_version }}
     state: present
     update_cache: yes
   tags: kubernetes
@@ -71,6 +99,14 @@
     - kubectl
   tags: kubernetes
 
+- name: Disable kubelet service (will be started by kubeadm init)
+  systemd:
+    name: kubelet
+    enabled: no
+    state: stopped
+  ignore_errors: true
+  tags: kubernetes
+
 - name: Disable swap
   command: swapoff -a
   when: ansible_swaptotal_mb > 0
@@ -80,7 +116,7 @@
 - name: Remove swap from /etc/fstab
   lineinfile:
     path: /etc/fstab
-    regexp: '^.*\sswap\s'
+    regexp: '^.*\\sswap\\s'
     state: absent
   tags: kubernetes
 
@@ -107,6 +143,7 @@
     src: kubernetes-sysctl.conf.j2
     dest: /etc/sysctl.d/99-kubernetes.conf
     mode: '0644'
+  notify: apply_sysctl
   tags: kubernetes
 
 - name: Apply sysctl settings
@@ -114,74 +151,171 @@
   changed_when: true
   tags: kubernetes
 
-- name: Initialize Kubernetes master node
-  command: >
-    kubeadm init
-    --pod-network-cidr={{ pod_network_cidr }}
-    --control-plane-endpoint={{ control_plane_endpoint }}
-  args:
-    creates: /etc/kubernetes/admin.conf
-  register: kubeadm_init
+- name: Pre-pull kubeadm images
+  command: kubeadm config images pull --kubernetes-version={{ kubernetes_semver }}
+  retries: 3
+  delay: 10
+  register: image_pull
+  until: image_pull.rc == 0
   tags: kubernetes
 
-- name: Create kube config directory for ansible user
-  file:
-    path: /home/ansible/.kube
-    state: directory
-    owner: ansible
-    group: ansible
-    mode: '0700'
+- name: Check if cluster is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeconfig_exists
   tags: kubernetes
 
-- name: Copy admin.conf for ansible user
-  copy:
-    src: /etc/kubernetes/admin.conf
-    dest: /home/ansible/.kube/config
-    owner: ansible
-    group: ansible
-    mode: '0600'
-    remote_src: yes
+- name: Initialize first master node
+  block:
+    - name: Ensure /etc/kubernetes directory exists
+      file:
+        path: /etc/kubernetes
+        state: directory
+        mode: '0755'
+      tags: kubernetes
+
+    - name: Generate certificate key for control plane
+      command: kubeadm certs certificate-key
+      register: cert_key_output
+      tags: kubernetes
+
+    - name: Set certificate key fact
+      set_fact:
+        certificate_key: "{{ cert_key_output.stdout }}"
+      tags: kubernetes
+
+    - name: Generate kubeadm config file for first master
+      template:
+        src: kubeadm-config.yaml.j2
+        dest: /etc/kubernetes/kubeadm-config.yaml
+        mode: '0644'
+      tags: kubernetes
+
+    - name: Initialize Kubernetes first master node
+      command: kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs --v=5
+      register: kubeadm_init
+      retries: 3
+      delay: 30
+      until: kubeadm_init.rc == 0
+      tags: kubernetes
+
+    - name: Extract join command from init output
+      set_fact:
+        join_command: "{{ kubeadm_init.stdout | regex_search('kubeadm join [^\\n]*', multiline=True) }}"
+      when: kubeadm_init.stdout is defined
+      tags: kubernetes
+
+    - name: Extract control plane join command
+      set_fact:
+        control_plane_join_command: "{{ kubeadm_init.stdout | regex_search('kubeadm join [^\\n]* --control-plane --certificate-key [a-f0-9]+', multiline=True) }}"
+      when: kubeadm_init.stdout is defined
+      tags: kubernetes
+
+    - name: Store join commands
+      copy:
+        content: |
+          # Worker join command
+          {{ join_command }}
+          
+          # Control plane join command
+          {{ control_plane_join_command }}
+        dest: /tmp/kubeadm-join-commands.txt
+        mode: '0600'
+      when: join_command is defined
+      tags: kubernetes
+
+  when: inventory_hostname == groups['k8s_masters'][0] and not kubeconfig_exists.stat.exists
   tags: kubernetes
 
-- name: Create kube config directory for ubuntu user
-  file:
-    path: /home/ubuntu/.kube
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: '0700'
+- name: Join additional master nodes
+  block:
+    - name: Wait for first master API server to be ready
+      wait_for:
+        host: "{{ control_plane_endpoint.split(':')[0] }}"
+        port: 6443
+        timeout: 300
+      tags: kubernetes
+
+    - name: Fetch control plane join command from first master
+      slurp:
+        src: /tmp/kubeadm-join-commands.txt
+      register: join_commands_content
+      delegate_to: "{{ groups['k8s_masters'][0] }}"
+      tags: kubernetes
+
+    - name: Extract control plane join command
+      set_fact:
+        control_plane_join_cmd: "{{ (join_commands_content['content'] | b64decode).split('\n') | select('match', '.*--control-plane.*') | list | first }}"
+      tags: kubernetes
+
+    - name: Join additional master node to cluster
+      command: "{{ control_plane_join_cmd }}"
+      register: join_result
+      retries: 3
+      delay: 30
+      until: join_result.rc == 0
+      tags: kubernetes
+
+  when: inventory_hostname != groups['k8s_masters'][0] and not kubeconfig_exists.stat.exists
   tags: kubernetes
 
-- name: Copy admin.conf for ubuntu user
-  copy:
-    src: /etc/kubernetes/admin.conf
-    dest: /home/ubuntu/.kube/config
-    owner: ubuntu
-    group: ubuntu
-    mode: '0600'
-    remote_src: yes
+- name: Setup kubectl for ansible user
+  block:
+    - name: Create kube config directory for ansible user
+      file:
+        path: /home/ansible/.kube
+        state: directory
+        owner: ansible
+        group: ansible
+        mode: '0700'
+      tags: kubernetes
+
+    - name: Copy admin.conf for ansible user
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ansible/.kube/config
+        owner: ansible
+        group: ansible
+        mode: '0600'
+        remote_src: yes
+      tags: kubernetes
+
   tags: kubernetes
 
-- name: Install Flannel CNI
-  command: >
-    kubectl apply -f {{ flannel_manifest_url }}
+- name: Wait for Kubernetes API server to be available
+  command: kubectl get nodes
   environment:
     KUBECONFIG: /home/ansible/.kube/config
-  when: kubeadm_init.changed
+  register: api_check
+  retries: 30
+  delay: 10
+  until: api_check.rc == 0
+  when: inventory_hostname == groups['k8s_masters'][0]
   tags: kubernetes
 
-- name: Generate join command
+- name: Install Calico CNI (only on first master)
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml
+  environment:
+    KUBECONFIG: /home/ansible/.kube/config
+  retries: 5
+  delay: 10
+  register: calico_apply
+  until: calico_apply.rc == 0
+  when: inventory_hostname == groups['k8s_masters'][0]
+  tags: kubernetes
+
+- name: Generate worker join command (only on first master)
   command: kubeadm token create --print-join-command
-  register: join_command
-  when: kubeadm_init.changed
+  register: worker_join_command
+  when: inventory_hostname == groups['k8s_masters'][0]
   tags: kubernetes
 
-- name: Save join command
+- name: Save worker join command (only on first master)
   copy:
-    content: "{{ join_command.stdout }}"
-    dest: /home/ansible/k8s-join-command.sh
+    content: "{{ worker_join_command.stdout }}"
+    dest: /home/ansible/k8s-worker-join-command.sh
     owner: ansible
     group: ansible
-    mode: '0600'
-  when: join_command.changed
+    mode: '0700'
+  when: inventory_hostname == groups['k8s_masters'][0] and worker_join_command.stdout is defined
   tags: kubernetes
