@@ -265,54 +265,48 @@
         path: /etc/kubernetes
         state: directory
         mode: '0755'
-      tags: kubernetes
 
     - name: Generate certificate key for control plane
       command: kubeadm certs certificate-key
       register: cert_key_output
-      tags: kubernetes
 
     - name: Set certificate key fact
       set_fact:
         certificate_key: "{{ cert_key_output.stdout }}"
-      tags: kubernetes
 
     - name: Generate kubeadm config file for first master
       template:
         src: kubeadm-config.yaml.j2
         dest: /etc/kubernetes/kubeadm-config.yaml
         mode: '0644'
-      tags: kubernetes
 
     - name: Initialize Kubernetes first master node
       command: kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs
       register: kubeadm_init
-      tags: kubernetes
 
-    - name: Extract join command from init output
+    - name: Extract certificate key from init output
       set_fact:
-        join_command: "{{ kubeadm_init.stdout | regex_search('kubeadm join [^\\n]*', multiline=True) }}"
+        uploaded_cert_key: "{{ kubeadm_init.stdout | regex_search('--certificate-key ([a-f0-9]+)', '\\1') | first }}"
       when: kubeadm_init.stdout is defined
-      tags: kubernetes
 
-    - name: Extract control plane join command
-      set_fact:
-        control_plane_join_command: "{{ kubeadm_init.stdout | regex_search('kubeadm join [^\\n]* --control-plane --certificate-key [a-f0-9]+', multiline=True) }}"
-      when: kubeadm_init.stdout is defined
-      tags: kubernetes
+    - name: Generate worker join command after init
+      command: kubeadm token create --print-join-command
+      register: worker_join_cmd_generated
 
-    - name: Store join commands
+    - name: Store certificate key and join commands
       copy:
         content: |
-          # Worker join command
-          {{ join_command }}
+          #!/bin/bash
+          # Certificate key from init
+          CERT_KEY="{{ uploaded_cert_key }}"
           
-          # Control plane join command
-          {{ control_plane_join_command }}
+          # Worker join command
+          {{ worker_join_cmd_generated.stdout }}
+          
+          # Control plane join command (use the cert key from init)
+          {{ worker_join_cmd_generated.stdout }} --control-plane --certificate-key {{ uploaded_cert_key }}
         dest: /tmp/kubeadm-join-commands.txt
         mode: '0600'
-      when: join_command is defined
-      tags: kubernetes
 
   when: inventory_hostname == groups['k8s_masters'][0] and not kubeconfig_exists.stat.exists
   tags: kubernetes
@@ -324,19 +318,21 @@
         host: "{{ control_plane_endpoint.split(':')[0] }}"
         port: 6443
         timeout: 300
-      tags: kubernetes
 
-    - name: Fetch control plane join command from first master
+    - name: Fetch join commands file from first master
       slurp:
         src: /tmp/kubeadm-join-commands.txt
       register: join_commands_content
       delegate_to: "{{ groups['k8s_masters'][0] }}"
-      tags: kubernetes
 
-    - name: Extract control plane join command
+    - name: Extract control plane join command from file
       set_fact:
-        control_plane_join_cmd: "{{ (join_commands_content['content'] | b64decode).split('\n') | select('match', '.*--control-plane.*') | list | first }}"
-      tags: kubernetes
+        control_plane_join_cmd: "{{ (join_commands_content['content'] | b64decode).split('\n') | select('match', '^kubeadm join.*--control-plane.*$') | list | first }}"
+      when: join_commands_content['content'] is defined
+
+    - name: Debug control plane join command
+      debug:
+        var: control_plane_join_cmd
 
     - name: Join additional master node to cluster
       command: "{{ control_plane_join_cmd }}"
@@ -344,7 +340,7 @@
       retries: 3
       delay: 30
       until: join_result.rc == 0
-      tags: kubernetes
+      when: control_plane_join_cmd is defined and control_plane_join_cmd != ""
 
   when: inventory_hostname != groups['k8s_masters'][0] and not kubeconfig_exists.stat.exists
   tags: kubernetes
@@ -358,7 +354,6 @@
         owner: ansible
         group: ansible
         mode: '0700'
-      tags: kubernetes
 
     - name: Copy admin.conf for ansible user
       copy:
@@ -368,7 +363,6 @@
         group: ansible
         mode: '0600'
         remote_src: yes
-      tags: kubernetes
 
   tags: kubernetes
 
@@ -396,16 +390,16 @@
 
 - name: Generate worker join command (only on first master)
   command: kubeadm token create --print-join-command
-  register: worker_join_command
+  register: worker_join_command_new
   when: inventory_hostname == groups['k8s_masters'][0]
   tags: kubernetes
 
 - name: Save worker join command (only on first master)
   copy:
-    content: "{{ worker_join_command.stdout }}"
+    content: "{{ worker_join_command_new.stdout }}"
     dest: /home/ansible/k8s-worker-join-command.sh
     owner: ansible
     group: ansible
     mode: '0700'
-  when: inventory_hostname == groups['k8s_masters'][0] and worker_join_command.stdout is defined
+  when: inventory_hostname == groups['k8s_masters'][0] and worker_join_command_new.stdout is defined
   tags: kubernetes
