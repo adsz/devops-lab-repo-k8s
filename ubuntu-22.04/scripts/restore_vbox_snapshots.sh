@@ -9,7 +9,7 @@ fi
 
 # List of VM names to restore
 VM_LIST=(
-#  "k8s-lb"
+  "k8s-lb"
   "k8s-master-1"
   "k8s-master-2"
 #  "k8s-worker-1"
