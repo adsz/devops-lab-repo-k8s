@@ -1,5 +1,4 @@
 ---
-# Configure Kubernetes worker node with kubeadm
 - name: Install dependencies
   apt:
     name:
@@ -23,11 +22,24 @@
     mode: '0755'
   tags: kubernetes
 
-- name: Configure containerd
-  template:
-    src: containerd-config.toml.j2
-    dest: /etc/containerd/config.toml
-    mode: '0644'
+- name: Generate containerd default config
+  shell: containerd config default > /etc/containerd/config.toml
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Patch containerd config for sandbox image
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = ".*"'
+    replace: 'sandbox_image = "{{ containerd_sandbox_image }}"'
+  notify: restart_containerd
+  tags: kubernetes
+
+- name: Set SystemdCgroup = true in containerd config
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
   notify: restart_containerd
   tags: kubernetes
 
@@ -39,9 +51,10 @@
   tags: kubernetes
 
 - name: Add Kubernetes apt key
-  apt_key:
+  get_url:
     url: "{{ kubernetes_apt_key_url }}"
-    state: present
+    dest: /etc/apt/trusted.gpg.d/kubernetes.asc
+    mode: '0644'
   tags: kubernetes
 
 - name: Add Kubernetes apt repository
@@ -54,9 +67,9 @@
 - name: Install Kubernetes components
   apt:
     name:
-      - kubeadm={{ kubernetes_version }}.*
-      - kubelet={{ kubernetes_version }}.*
-      - kubectl={{ kubernetes_version }}.*
+      - kubeadm={{ kubernetes_version }}
+      - kubelet={{ kubernetes_version }}
+      - kubectl={{ kubernetes_version }}
     state: present
     update_cache: yes
   tags: kubernetes

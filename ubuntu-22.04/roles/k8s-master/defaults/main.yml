@@ -1,6 +1,10 @@
 ---
-# Default Kubernetes settings
-kubernetes_version: "1.29"
+kubernetes_version: "1.29.15-1.1"
+kubernetes_semver: "1.29.15"
+kubernetes_repo_version: "1.29"
 pod_network_cidr: "10.244.0.0/16"
-control_plane_endpoint: "192.168.0.180:6443"
-containerd_sandbox_image: "registry.k8s.io/pause:3.8"
+control_plane_endpoint: "192.168.0.200:6443"
+containerd_sandbox_image: "registry.k8s.io/pause:3.9"
+calico_version: "v3.27.3"
+certificate_key_ttl: "24h"
+
