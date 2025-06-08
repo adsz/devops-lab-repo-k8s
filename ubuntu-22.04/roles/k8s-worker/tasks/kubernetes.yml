@@ -1,4 +1,39 @@
 ---
+- name: Fix system time (NTP sync)
+  block:
+    - name: Install NTP utilities
+      apt:
+        name:
+          - chrony
+          - ntpdate
+        state: present
+        update_cache: yes
+
+    - name: Stop chrony service
+      systemd:
+        name: chrony
+        state: stopped
+      ignore_errors: true
+
+    - name: Sync time with ntpdate
+      command: ntpdate -s time.nist.gov
+      ignore_errors: true
+
+    - name: Set timezone to Europe/Warsaw
+      timezone:
+        name: Europe/Warsaw
+
+    - name: Start and enable chrony
+      systemd:
+        name: chrony
+        state: started
+        enabled: yes
+
+    - name: Force time synchronization
+      command: chronyc sources -v
+      ignore_errors: true
+  tags: kubernetes
+
 - name: Install dependencies
   apt:
     name:

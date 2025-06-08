@@ -1,4 +1,50 @@
 ---
+- name: Fix system time (NTP sync)
+  block:
+    - name: Stop systemd-timesyncd if running
+      systemd:
+        name: systemd-timesyncd
+        state: stopped
+      ignore_errors: true
+
+    - name: Install NTP utilities
+      apt:
+        name:
+          - chrony
+          - ntpdate
+        state: present
+        update_cache: no
+        force_apt_get: yes
+
+    - name: Force immediate time sync
+      shell: |
+        timedatectl set-ntp false
+        ntpdate -s time.nist.gov || ntpdate -s pool.ntp.org || true
+        timedatectl set-ntp true
+      ignore_errors: true
+
+    - name: Set timezone to Europe/Warsaw
+      timezone:
+        name: Europe/Warsaw
+
+    - name: Start and enable chrony
+      systemd:
+        name: chrony
+        state: started
+        enabled: yes
+
+    - name: Force time synchronization
+      command: chronyc sources -v
+      ignore_errors: true
+
+    - name: Update apt cache after time fix
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+      retries: 3
+      delay: 10
+  tags: kubernetes
+
 - name: Ensure /etc/hosts has all master entries
   lineinfile:
     path: /etc/hosts
@@ -65,16 +111,29 @@
     state: started
   tags: kubernetes
 
-- name: Add Kubernetes apt key
+- name: Create keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags: kubernetes
+
+- name: Add Kubernetes apt key (new repo)
   get_url:
     url: "{{ kubernetes_apt_key_url }}"
-    dest: /etc/apt/trusted.gpg.d/kubernetes.asc
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
     mode: '0644'
   tags: kubernetes
 
-- name: Add Kubernetes apt repository
+- name: Remove old Kubernetes repository if exists
+  file:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    state: absent
+  tags: kubernetes
+
+- name: Add Kubernetes apt repository (new repo)
   apt_repository:
-    repo: "{{ kubernetes_apt_repo }}"
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_repo_version }}/deb/ /"
     state: present
     filename: kubernetes
   tags: kubernetes
@@ -149,14 +208,6 @@
   command: sysctl --system
   changed_when: true
   tags: kubernetes
-
-# - name: Pre-pull kubeadm images
-#   command: kubeadm config images pull --kubernetes-version={{ kubernetes_semver }}
-#   retries: 3
-#   delay: 10
-#   register: image_pull
-#   until: image_pull.rc == 0
-#   tags: kubernetes
 
 - name: Check if cluster is already initialized
   stat:
@@ -268,7 +319,7 @@
 
 - name: Join additional master nodes
   block:
-    - name: Wait for first master API server to be ready
+    - name: Wait for Load Balancer VIP to be ready
       wait_for:
         host: "{{ control_plane_endpoint.split(':')[0] }}"
         port: 6443
