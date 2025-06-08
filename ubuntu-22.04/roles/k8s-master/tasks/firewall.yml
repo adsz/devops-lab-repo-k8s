@@ -1,0 +1,35 @@
+---
+- name: Allow Kubernetes API server (6443/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 6443
+    proto: tcp
+    comment: "Kubernetes API server"
+
+- name: Allow etcd server client API (2379:2380/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 2379:2380
+    proto: tcp
+    comment: "etcd server client API"
+
+- name: Allow Kubelet API (10250/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 10250
+    proto: tcp
+    comment: "Kubelet API"
+
+- name: Allow kube-scheduler (10259/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 10259
+    proto: tcp
+    comment: "kube-scheduler"
+
+- name: Allow kube-controller-manager (10257/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 10257
+    proto: tcp
+    comment: "kube-controller-manager"

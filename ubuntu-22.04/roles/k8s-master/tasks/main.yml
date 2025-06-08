@@ -5,6 +5,10 @@
     name: common
   tags: [packages, security, vagrant_removal]
 
+- name: Configure Firewall for Kubernetes master
+  include_tasks: firewall.yml
+  tags: kubernetes
+
 - name: Configure Kubernetes master
   include_tasks: kubernetes.yml
   tags: kubernetes
