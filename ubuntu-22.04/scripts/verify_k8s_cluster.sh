@@ -1,7 +1,5 @@
 #!/bin/bash
-
-echo "=== Fixing Cluster Issues ==="
-echo ""
+# Script to verify k8s-masters BEFORE joining k8s-workers
 
 echo "1. Current cluster status:"
 ansible k8s-master-1 -i inventory.yml -m shell -a "kubectl get nodes -o wide" --become-user ansible
