@@ -5,6 +5,7 @@
     port: 6443
     proto: tcp
     comment: "Kubernetes API Server"
+  tags: firewall
 
 - name: Allow HTTP (80/tcp)
   community.general.ufw:
@@ -12,6 +13,7 @@
     port: 80
     proto: tcp
     comment: "HTTP"
+  tags: firewall
 
 - name: Allow HTTPS (443/tcp)
   community.general.ufw:
@@ -19,6 +21,7 @@
     port: 443
     proto: tcp
     comment: "HTTPS"
+  tags: firewall
 
 - name: Allow NodePort Services (30000-32767/tcp)
   community.general.ufw:
@@ -26,6 +29,7 @@
     port: 30000:32767
     proto: tcp
     comment: "NodePort Services"
+  tags: firewall
 
 - name: Allow HAProxy Stats (8404/tcp)
   community.general.ufw:
@@ -33,3 +37,4 @@
     port: 8404
     proto: tcp
     comment: "Kubernetes HAProxy Stats"
+  tags: firewall
