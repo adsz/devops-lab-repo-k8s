@@ -5,6 +5,7 @@
     port: 6443
     proto: tcp
     comment: "Kubernetes API server"
+  tags: firewall
 
 - name: Allow etcd server client API (2379:2380/tcp)
   community.general.ufw:
@@ -12,6 +13,7 @@
     port: 2379:2380
     proto: tcp
     comment: "etcd server client API"
+  tags: firewall
 
 - name: Allow Kubelet API (10250/tcp)
   community.general.ufw:
@@ -19,6 +21,7 @@
     port: 10250
     proto: tcp
     comment: "Kubelet API"
+  tags: firewall
 
 - name: Allow kube-scheduler (10259/tcp)
   community.general.ufw:
@@ -26,6 +29,7 @@
     port: 10259
     proto: tcp
     comment: "kube-scheduler"
+  tags: firewall
 
 - name: Allow kube-controller-manager (10257/tcp)
   community.general.ufw:
@@ -33,3 +37,28 @@
     port: 10257
     proto: tcp
     comment: "kube-controller-manager"
+  tags: firewall
+
+- name: Allow Calico BGP (179/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 179
+    proto: tcp
+    comment: "Calico BGP"
+  tags: firewall
+
+- name: Allow Calico VXLAN (4789/udp)
+  community.general.ufw:
+    rule: allow
+    port: 4789
+    proto: udp
+    comment: "Calico VXLAN"
+  tags: firewall
+
+- name: Allow Calico WireGuard (51820/udp)
+  community.general.ufw:
+    rule: allow
+    port: 51820
+    proto: udp
+    comment: "Calico WireGuard"
+  tags: firewall

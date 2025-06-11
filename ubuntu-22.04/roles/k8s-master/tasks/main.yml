@@ -7,7 +7,7 @@
 
 - name: Configure Firewall for Kubernetes master
   include_tasks: firewall.yml
-  tags: kubernetes
+  tags: [kubernetes, firewall]
 
 - name: Configure Kubernetes master
   include_tasks: kubernetes.yml

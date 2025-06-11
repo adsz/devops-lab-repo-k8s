@@ -1,7 +1,7 @@
 ---
 - name: Configure Firewall for Load Balancer
   include_tasks: firewall.yml
-  tags: loadbalancer
+  tags: [loadbalancer, firewall]
 
 - name: Fix system time (NTP sync)
   block:

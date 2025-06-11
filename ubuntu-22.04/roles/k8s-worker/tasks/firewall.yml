@@ -5,6 +5,7 @@
     port: 10250
     proto: tcp
     comment: "Kubelet API"
+  tags: firewall
 
 - name: Allow NodePort Services (30000-32767/tcp)
   community.general.ufw:
@@ -12,6 +13,7 @@
     port: 30000:32767
     proto: tcp
     comment: "NodePort Services"
+  tags: firewall
 
 - name: Allow Weave Net CNI (6783/tcp,udp)
   community.general.ufw:
@@ -19,11 +21,14 @@
     port: 6783
     proto: tcp
     comment: "Weave Net TCP"
+  tags: firewall
+
 - community.general.ufw:
     rule: allow
     port: 6783
     proto: udp
     comment: "Weave Net UDP"
+  tags: firewall
 
 - name: Allow Flannel VXLAN (8472/udp)
   community.general.ufw:
@@ -31,6 +36,7 @@
     port: 8472
     proto: udp
     comment: "Flannel VXLAN"
+  tags: firewall
 
 - name: Allow Flannel UDP backend (8285/udp)
   community.general.ufw:
@@ -38,3 +44,28 @@
     port: 8285
     proto: udp
     comment: "Flannel UDP backend"
+  tags: firewall
+
+- name: Allow Calico BGP (179/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 179
+    proto: tcp
+    comment: "Calico BGP"
+  tags: firewall
+
+- name: Allow Calico VXLAN (4789/udp)
+  community.general.ufw:
+    rule: allow
+    port: 4789
+    proto: udp
+    comment: "Calico VXLAN"
+  tags: firewall
+
+- name: Allow Calico WireGuard (51820/udp)
+  community.general.ufw:
+    rule: allow
+    port: 51820
+    proto: udp
+    comment: "Calico WireGuard"
+  tags: firewall
