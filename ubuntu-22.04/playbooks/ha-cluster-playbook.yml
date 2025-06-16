@@ -1,30 +1,181 @@
 ---
-- name: Deploy Kubernetes HA Cluster
+- name: Deploy Kubernetes HA Cluster - Complete Installation
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Deploy Load Balancer first
-      import_playbook: loadbalancer-playbook.yml
+    - name: Display deployment information
+      debug:
+        msg: |
+          Starting Kubernetes HA Cluster deployment:
+          - Load Balancer: {{ groups['k8s_loadbalancers'] | default(['none']) | join(', ') }}
+          - Masters: {{ groups['k8s_masters'] | default(['none']) | join(', ') }}
+          - Workers: {{ groups['k8s_workers'] | default(['none']) | join(', ') }}
 
-    - name: Wait for load balancer to be ready
+- name: Configure Load Balancer
+  hosts: k8s_loadbalancers
+  become: yes
+  gather_facts: yes
+  roles:
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
+    - { role: loadbalancer, tags: [loadbalancer] }
+
+- name: Wait for Load Balancer VIP
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Wait for load balancer VIP to be ready
       wait_for:
         host: 192.168.0.200
         port: 6443
-        timeout: 60
-      delegate_to: localhost
+        timeout: 120
+        msg: "Load balancer VIP not ready"
+      ignore_errors: true
 
 - name: Configure Kubernetes Masters
   hosts: k8s_masters
   become: yes
-  serial: 1
+  gather_facts: yes
   roles:
-    - { role: common, tags: [packages, security, vagrant_removal] }
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
     - { role: k8s-precheck, tags: [k8s_precheck] }
     - { role: k8s-master, tags: [kubernetes] }
+
+- name: Prepare worker join command
+  hosts: k8s_masters[0]
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Generate worker join command
+      command: kubeadm token create --print-join-command
+      register: worker_join_cmd
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+
+    - name: Copy join command to all worker nodes
+      copy:
+        content: "{{ worker_join_cmd.stdout }}"
+        dest: /tmp/k8s-join-command.sh
+        mode: '0755'
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['k8s_workers'] }}"
+
+    - name: Display join command
+      debug:
+        msg: "Worker join command: {{ worker_join_cmd.stdout }}"
 
 - name: Configure Kubernetes Workers
   hosts: k8s_workers
   become: yes
+  gather_facts: yes
   roles:
-    - { role: common, tags: [packages, security, vagrant_removal] }
+    - { role: common, tags: [common, packages, security, vagrant_removal] }
     - { role: k8s-worker, tags: [kubernetes] }
+
+- name: Install Kubernetes tools  
+  hosts: k8s_masters, k8s_workers
+  become: true
+  roles:
+    - { role: k8s-node-tools, tags: [kubernetes, k8s_tools] }
+
+- name: Post-deployment verification
+  hosts: k8s_masters[0]
+  become: yes
+  become_user: ansible
+  gather_facts: no
+  tasks:
+    - name: Wait for cluster to stabilize
+      pause:
+        seconds: 30
+
+    - name: Check cluster status
+      command: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: cluster_nodes
+      retries: 5
+      delay: 10
+      until: cluster_nodes.rc == 0
+
+    - name: Display cluster status
+      debug:
+        msg: |
+          Cluster Nodes Status:
+          {{ cluster_nodes.stdout }}
+
+    - name: Check system pods
+      command: kubectl get pods -n kube-system -o wide
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: system_pods
+      retries: 3
+      delay: 10
+      until: system_pods.rc == 0
+
+    - name: Display system pods status
+      debug:
+        msg: |
+          System Pods Status:
+          {{ system_pods.stdout }}
+
+    - name: Check cluster info
+      command: kubectl cluster-info
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: cluster_info
+
+    - name: Display cluster info
+      debug:
+        msg: |
+          Cluster Information:
+          {{ cluster_info.stdout }}
+
+    - name: Verify all nodes are Ready
+      shell: kubectl get nodes --no-headers | awk '{print $2}' | grep -v Ready | wc -l
+      environment:
+        KUBECONFIG: /home/ansible/.kube/config
+      register: not_ready_nodes
+      failed_when: not_ready_nodes.stdout|int > 0
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ====================================================
+          🎉 Kubernetes HA Cluster Deployment Complete! 🎉
+          ====================================================
+          
+          Cluster Components:
+          - Load Balancer VIP: 192.168.0.200:6443
+          - Master Nodes: {{ groups['k8s_masters'] | join(', ') }}
+          - Worker Nodes: {{ groups['k8s_workers'] | join(', ') }}
+          
+          Access Information:
+          - SSH: ssh ansible@192.168.0.180 -i /root/.ssh/id_rsa
+          - kubectl: export KUBECONFIG=/home/ansible/.kube/config
+          - HAProxy Stats: http://192.168.0.175:8404/stats (admin/admin)
+          
+          Quick Commands:
+          - kubectl get nodes
+          - kubectl get pods -n kube-system
+          - kubectl get svc -A
+          
+          ====================================================
+
+- name: Final connectivity test
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Test load balancer VIP connectivity
+      wait_for:
+        host: 192.168.0.200
+        port: 6443
+        timeout: 30
+      register: vip_test
+      ignore_errors: true
+
+    - name: Display VIP test result
+      debug:
+        msg: |
+          Load Balancer VIP Test: {{ 'PASSED' if vip_test is succeeded else 'FAILED' }}
+          {% if vip_test is failed %}
+          Note: VIP might not be ready yet. Check HAProxy and Keepalived status.
+          {% endif %}
