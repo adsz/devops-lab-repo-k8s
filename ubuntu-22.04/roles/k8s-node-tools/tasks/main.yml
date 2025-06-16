@@ -1,0 +1,72 @@
+---
+- name: Install CLI tools
+  apt:
+    name:
+      - curl
+      - wget
+      - jq
+      - git
+      - python3-pip
+      - socat
+      - netcat-openbsd
+      - tcpdump
+      - mtr
+      - traceroute
+      - iproute2
+      - iputils-ping
+      - rsync
+      - atop
+      - htop
+      - iotop
+      - vim
+      - less
+      - tar
+      - unzip
+      - nfs-common
+      - cifs-utils
+    state: present
+    update_cache: yes
+  tags: k8s_tools
+
+- name: Install yq (latest)
+  pip:
+    name: yq
+    state: latest
+  tags: k8s_tools
+
+- name: Download and install crictl
+  shell: |
+    set -e
+    VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/cri-tools/releases/latest | grep tag_name | cut -d '"' -f 4)
+    wget -q https://github.com/kubernetes-sigs/cri-tools/releases/download/${VERSION}/crictl-${VERSION}-linux-amd64.tar.gz
+    tar zxvf crictl-${VERSION}-linux-amd64.tar.gz -C /usr/local/bin
+    rm -f crictl-${VERSION}-linux-amd64.tar.gz
+  args:
+    creates: /usr/local/bin/crictl
+  tags: k8s_tools
+
+- name: Ensure crictl config file exists
+  copy:
+    dest: /etc/crictl.yaml
+    content: |
+      runtime-endpoint: unix:///run/containerd/containerd.sock
+    owner: root
+    group: root
+    mode: 0644
+  tags: k8s_tools
+
+# - name: Install kubectl (latest stable)
+#   shell: |
+#     curl -sLO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+#     install -m 0755 kubectl /usr/local/bin/kubectl
+#     rm kubectl
+#   args:
+#     creates: /usr/local/bin/kubectl
+#   tags: k8s_tools
+
+- name: Install helm (latest)
+  shell: |
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+  tags: k8s_tools

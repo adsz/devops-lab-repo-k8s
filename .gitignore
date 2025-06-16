@@ -3,5 +3,6 @@ wip/*
 **/vagrant/creds.yml
 **/.venv
 *bak*
+*backup*
 **/*.log
 howto.txt
