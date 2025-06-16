@@ -1,7 +1,0 @@
----
-- name: Test k8s-precheck role
-  hosts: k8s_masters
-  become: yes
-  roles:
-    - role: k8s-precheck
-      tags: k8s_precheck
