@@ -1,0 +1,44 @@
+---
+box: "ubuntu/jammy64"
+vb_group: "K8S-HA"
+bridge_interface: "eno1"
+gateway: "192.168.0.1"
+nameservers:
+  - "8.8.8.8"
+  - "1.1.1.1"
+nodes:
+  k8s-lb:
+    private_ip: "10.0.0.5"
+    public_ip: "192.168.0.175"
+    ssh_port: 2220
+    memory: 2048
+    cpus: 1
+    role: "loadbalancer"
+  k8s-master-1:
+    private_ip: "10.0.0.10"
+    public_ip: "192.168.0.180"
+    ssh_port: 2221
+    memory: 4096
+    cpus: 2
+    role: "master"
+  k8s-master-2:
+    private_ip: "10.0.0.11"
+    public_ip: "192.168.0.181"
+    ssh_port: 2222
+    memory: 4096
+    cpus: 2
+    role: "master"
+  k8s-worker-1:
+    private_ip: "10.0.0.20"
+    public_ip: "192.168.0.190"
+    ssh_port: 2223
+    memory: 4096
+    cpus: 2
+    role: "worker"
+  k8s-worker-2:
+    private_ip: "10.0.0.21"
+    public_ip: "192.168.0.191"
+    ssh_port: 2224
+    memory: 4096
+    cpus: 2
+    role: "worker"
