@@ -1,18 +1,24 @@
 ## Vagrant file for K8S 
 ## Ubuntu 22.04 LTS for best compability with K8S 
 ## Don't upgdage to 24.04 LTS
-## ansible and ubuntu users connect with ol01 ssh key
-## IPs 192.168.0.180,192.168.0.181,192.168.0.182
+## ansible and ubuntu users connect with ssh key
+## IPs 192.168.0.175, 192.168.0.180, 192.168.0.181, 192.168.0.190, 192.168.0.191
 ## VirtualBox Group K8S 
 
 require 'yaml'
 
-# Load configuration from external file
+# Load configuration from external files
 config_file = File.join(File.dirname(__FILE__), 'config.yml')
 unless File.exist?(config_file)
   raise "Configuration file 'config.yml' not found!"
 end
 settings = YAML.load_file(config_file)
+
+creds_file = File.join(File.dirname(__FILE__), 'creds.yml')
+unless File.exist?(creds_file)
+  raise "Credentials file 'creds.yml' not found!"
+end
+settings = YAML.load_file(creds_file)
 
 Vagrant.configure("2") do |config|
   config.vm.box = settings['box']

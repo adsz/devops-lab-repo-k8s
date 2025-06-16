@@ -1,5 +1,6 @@
 wip/*
 **/.vagrant/
+**/vagrant/creds.yml
 **/.venv
 *bak*
 **/*.log
