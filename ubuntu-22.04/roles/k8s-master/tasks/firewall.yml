@@ -62,3 +62,19 @@
     proto: udp
     comment: "Calico WireGuard"
   tags: firewall
+
+- name: Allow NodeExplorer (9100/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 9100
+    proto: tcp
+    comment: "NodeExplorer"
+  tags: firewall
+
+- name: Allow etcd metrics (2381/tcp)
+  community.general.ufw:
+    rule: allow
+    port: 2381
+    proto: tcp
+    comment: "etcd metrics"
+  tags: firewall

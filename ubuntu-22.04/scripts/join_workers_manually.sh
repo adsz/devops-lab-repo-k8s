@@ -16,8 +16,14 @@ ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no ansible@192.168.0.190 "sudo
 echo "3. Joining k8s-worker-2..."
 ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no ansible@192.168.0.191 "sudo $JOIN_CMD"
 
+# Label workers with node-role.kubernetes.io/worker
+echo "4. Labeling workers..."
+ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no ansible@192.168.0.180 "
+  kubectl label node k8s-worker-1 node-role.kubernetes.io/worker= --overwrite && \
+  kubectl label node k8s-worker-2 node-role.kubernetes.io/worker= --overwrite
+"
 # Check status
-echo "4. Checking cluster status..."
+echo "5. Checking cluster status..."
 ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no ansible@192.168.0.180 "kubectl get nodes -o wide"
 
 echo "=== Done ==="

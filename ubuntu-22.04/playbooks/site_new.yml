@@ -71,6 +71,12 @@
     - { role: common, tags: [common, packages, security, vagrant_removal] }
     - { role: k8s-worker, tags: [kubernetes] }
 
+- name: Install Kubernetes tools  
+  hosts: k8s_masters, k8s_workers
+  become: true
+  roles:
+    - { role: k8s-node-tools, tags: [kubernetes, k8s_tools] }
+
 - name: Post-deployment verification
   hosts: k8s_masters[0]
   become: yes
