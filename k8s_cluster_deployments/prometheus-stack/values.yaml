@@ -1,0 +1,66 @@
+fullnameOverride: prometheus
+
+# PROMETHEUS SETTINGS
+prometheus:
+  service:
+    type: LoadBalancer
+    port: 9090
+  prometheusSpec:
+    retention: 7d
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+# ALERTMANAGER SETTINGS
+alertmanager:
+  enabled: true
+  service:
+    type: LoadBalancer
+    port: 9093
+
+# GRAFANA SETTINGS
+grafana:
+  enabled: true
+  service:
+    type: LoadBalancer
+    port: 80
+  adminPassword: admin
+  defaultDashboardsEnabled: true
+
+# KUBE-STATE-METRICS
+kubeStateMetrics:
+  enabled: true
+
+# NODE-EXPORTER
+prometheus-node-exporter:
+  enabled: true
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+
+
+# PROMETHEUS-OPERATOR
+prometheusOperator:
+  enabled: true
+
+# ADDITIONAL COMPONENTS (DISABLE IF NOT NEEDED)
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+# RBAC AND SECURITY
+rbac:
+  create: true
+
+# ADDITIONAL SCRAPE CONFIG (OPTIONAL)
+# prometheus:
+#   prometheusSpec:
+#     additionalScrapeConfigs:
+#       - job_name: 'example'
+#         static_configs:
+#           - targets: ['my-app.example.com:80']
+
+
