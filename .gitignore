@@ -6,3 +6,4 @@ wip/*
 *backup*
 **/*.log
 howto.txt
+**/scripts/other
