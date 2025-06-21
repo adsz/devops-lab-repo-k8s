@@ -7,3 +7,80 @@ wip/*
 **/*.log
 howto.txt
 **/scripts/other
+
+# GitHub Actions sensitive configuration files
+github-actions/config/secrets.yml
+# File: /repos/devops-lab-new/devops-lab-repo-k8s/.gitignore
+
+# Sensitive configuration files
+github-actions/config/secrets.yml
+github-actions/config/secrets.yaml
+
+# Ansible
+*.retry
+.ansible/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Vagrant
+.vagrant/
+*.box
+
+# VirtualBox
+*.vdi
+*.vmdk
+*.vbox-prev
+
+# Backup files
+k8s-backup-*/
+latest-backup.txt
+deployment-summary.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmpgithub-actions/config/secrets.yaml
+github-actions/config/secrets.yml.template
