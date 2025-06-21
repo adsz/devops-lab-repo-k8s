@@ -1,0 +1,52 @@
+# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/config/config.yml
+# Non-sensitive configuration variables
+
+infrastructure:
+  vm_ips:
+    loadbalancer: "192.168.0.175"
+    master1: "192.168.0.180"
+    master2: "192.168.0.181"
+    worker1: "192.168.0.190"
+    worker2: "192.168.0.191"
+    vip: "192.168.0.200"
+  
+  ports:
+    k8s_api: 6443
+    haproxy_stats: 8404
+    ssh: 22
+
+backup:
+  s3_bucket: "ol01-k8s-github-actions"
+  aws_region: "eu-central-1"
+  retention_days: 30
+  backup_schedule: "0 2 * * *"  # Daily at 2 AM
+
+kubernetes:
+  master_user: "ansible"
+  kubeconfig_path: "/home/ansible/.kube/config"
+  ssh_key_path: "/root/.ssh/id_rsa"
+  
+snapshots:
+  default_snapshot: "clean-install"
+  vm_names:
+    - "k8s-lb"
+    - "k8s-master-1"
+    - "k8s-master-2"
+    - "k8s-worker-1"
+    - "k8s-worker-2"
+
+notifications:
+  slack_enabled: false
+  teams_enabled: false
+  email_enabled: false
+
+timeouts:
+  vm_startup: 300
+  cluster_ready: 600
+  app_restore: 900
+
+ansible:
+  config_file: "ubuntu-22.04/ansible.cfg"
+  inventory_file: "ubuntu-22.04/inventory.yml"
+  playbook_path: "ubuntu-22.04/playbooks/ha-cluster-playbook.yml"
+  host_key_checking: false
