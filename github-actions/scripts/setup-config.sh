@@ -1,102 +1,58 @@
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/scripts/setup-config.sh
 #!/bin/bash
+# File: ubuntu-22.04/github-actions/scripts/setup-config.sh
 
 set -e
 
-echo "=== GitHub Actions Configuration Setup ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="$(dirname "$SCRIPT_DIR")/config"
 
-# Create config directory
-mkdir -p github-actions/config
+echo "=== Kubernetes Disaster Recovery Setup ==="
 
-# Check if config files exist
-if [ ! -f "github-actions/config/config.yml" ]; then
-    echo "Creating github-actions/config/config.yml..."
-    # Config file will be created by the artifact above
+# Check if secrets.yml exists
+if [ ! -f "$CONFIG_DIR/secrets.yml" ]; then
+    echo "Creating secrets.yml from template..."
+    cp "$CONFIG_DIR/secrets.yml.template" "$CONFIG_DIR/secrets.yml"
+    echo "IMPORTANT: Edit $CONFIG_DIR/secrets.yml with your actual credentials"
+    echo "The file has been created but contains placeholder values"
+fi
+
+# Load configuration
+if [ -f "$CONFIG_DIR/config.yml" ]; then
+    echo "✓ Configuration file found"
 else
-    echo "github-actions/config/config.yml already exists"
+    echo "✗ Configuration file not found at $CONFIG_DIR/config.yml"
+    exit 1
 fi
 
-if [ ! -f "github-actions/config/secrets.yml" ]; then
-    echo "Creating github-actions/config/secrets.yml from template..."
-    cp github-actions/config/secrets.yml.template github-actions/config/secrets.yml
-    echo "Please edit github-actions/config/secrets.yml with your actual credentials"
+# Check required tools
+echo "Checking required tools..."
+
+if command -v ansible &> /dev/null; then
+    echo "✓ Ansible found: $(ansible --version | head -1)"
 else
-    echo "github-actions/config/secrets.yml already exists"
+    echo "✗ Ansible not found"
+    exit 1
 fi
 
-# Check if .gitignore is updated
-if ! grep -q "github-actions/config/secrets.yml" .gitignore 2>/dev/null; then
-    echo "Updating .gitignore..."
-    cat >> .gitignore << 'EOF'
-
-# Sensitive configuration files
-github-actions/config/secrets.yml
-github-actions/config/secrets.yaml
-EOF
-fi
-
-# Validate current config
-echo ""
-echo "=== Configuration Validation ==="
-
-if command -v yq &> /dev/null; then
-    echo "✓ yq is installed"
-    
-    if [ -f "github-actions/config/config.yml" ]; then
-        echo "✓ github-actions/config/config.yml exists"
-        echo "  Load Balancer IP: $(yq '.infrastructure.vm_ips.loadbalancer' github-actions/config/config.yml)"
-        echo "  S3 Bucket: $(yq '.backup.s3_bucket' github-actions/config/config.yml)"
-    else
-        echo "✗ github-actions/config/config.yml missing"
-    fi
-    
-    if [ -f "github-actions/config/secrets.yml" ]; then
-        echo "✓ github-actions/config/secrets.yml exists"
-        # Don't display sensitive values
-        if yq '.aws.access_key_id' github-actions/config/secrets.yml | grep -q "AKIA"; then
-            echo "  AWS credentials: configured"
-        else
-            echo "  AWS credentials: need configuration"
-        fi
-    else
-        echo "✗ github-actions/config/secrets.yml missing"
-    fi
+if command -v aws &> /dev/null; then
+    echo "✓ AWS CLI found: $(aws --version)"
 else
-    echo "Installing yq..."
-    sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-    sudo chmod +x /usr/local/bin/yq
+    echo "✗ AWS CLI not found - installing..."
+    pip install awscli
 fi
 
-echo ""
-echo "=== Next Steps ==="
-echo "1. Edit github-actions/config/config.yml with your infrastructure details"
-echo "2. Edit github-actions/config/secrets.yml with your sensitive credentials"
-echo "3. Setup GitHub repository secrets (if using GitHub hosted runners):"
-echo "   - AWS_ACCESS_KEY_ID"
-echo "   - AWS_SECRET_ACCESS_KEY" 
-echo "   - SLACK_WEBHOOK_URL (optional)"
-echo "4. Setup self-hosted runner for local VM access"
-echo ""
-echo "=== GitHub Secrets Setup Commands ==="
-echo "gh secret set AWS_ACCESS_KEY_ID"
-echo "gh secret set AWS_SECRET_ACCESS_KEY"
-echo "gh secret set SLACK_WEBHOOK_URL"
-
-# Create S3 bucket if AWS CLI is configured
-if command -v aws &> /dev/null && aws sts get-caller-identity &>/dev/null; then
-    S3_BUCKET=$(yq '.backup.s3_bucket' github-actions/config/config.yml 2>/dev/null || echo "")
-    if [ -n "$S3_BUCKET" ] && [ "$S3_BUCKET" != "null" ]; then
-        echo ""
-        echo "=== S3 Bucket Setup ==="
-        if aws s3 ls "s3://$S3_BUCKET" &>/dev/null; then
-            echo "✓ S3 bucket $S3_BUCKET exists"
-        else
-            echo "Creating S3 bucket: $S3_BUCKET"
-            aws s3 mb "s3://$S3_BUCKET"
-            echo "✓ S3 bucket created"
-        fi
-    fi
+if command -v VBoxManage &> /dev/null; then
+    echo "✓ VirtualBox found: $(VBoxManage --version)"
+else
+    echo "⚠ VirtualBox not found - VM snapshot operations will not work"
 fi
 
-echo ""
-echo "Configuration setup completed!"
+# Test connectivity to cluster
+echo "Testing cluster connectivity..."
+if ansible all -i inventory.yml -m ping > /dev/null 2>&1; then
+    echo "✓ All nodes reachable"
+else
+    echo "⚠ Some nodes unreachable - check inventory.yml"
+fi
+
+echo "Setup completed successfully!"

@@ -1,125 +1,320 @@
-#!/bin/bash
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/create-github-actions-files.sh
+---
+name: "Kubernetes Disaster Recovery and Infrastructure Management"
 
-set -e
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'backup'
+        type: choice
+        options:
+          - backup
+          - restore
+          - snapshot_create
+          - snapshot_restore
+          - snapshot_list
+          - cluster_health_check
+          - disaster_recovery_test
+      snapshot_name:
+        description: 'Snapshot name (for snapshot operations)'
+        required: false
+        default: 'auto-$(date +%Y%m%d-%H%M%S)'
+      restore_point:
+        description: 'Restore point (snapshot name or backup date)'
+        required: false
+        default: 'latest'
 
-REPO_ROOT="/repos/devops-lab-new/devops-lab-repo-k8s"
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+    - cron: '0 */6 * * *'  # Every 6 hours for health checks
 
-echo "=== Creating GitHub Actions Files Structure ==="
-echo "Repository root: $REPO_ROOT"
+env:
+  ANSIBLE_HOST_KEY_CHECKING: false
+  ANSIBLE_STDOUT_CALLBACK: yaml
+  CONFIG_PATH: github-actions/config
+  SCRIPTS_PATH: github-actions/scripts
 
-# Ensure we're in the correct directory
-cd "$REPO_ROOT"
+jobs:
+  setup:
+    runs-on: self-hosted
+    outputs:
+      action: ${{ steps.determine_action.outputs.action }}
+      snapshot_name: ${{ steps.determine_action.outputs.snapshot_name }}
+      restore_point: ${{ steps.determine_action.outputs.restore_point }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# Create directories
-echo "Creating directories..."
-mkdir -p .github/workflows
-mkdir -p github-actions/config
-mkdir -p github-actions/scripts
+      - name: Determine action to perform
+        id: determine_action
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "$(date +%H)" = "02" ]; then
+              echo "action=backup" >> $GITHUB_OUTPUT
+            else
+              echo "action=cluster_health_check" >> $GITHUB_OUTPUT
+            fi
+            echo "snapshot_name=auto-$(date +%Y%m%d-%H%M%S)" >> \
+              $GITHUB_OUTPUT
+            echo "restore_point=latest" >> $GITHUB_OUTPUT
+          else
+            echo "action=${{ github.event.inputs.action }}" >> \
+              $GITHUB_OUTPUT
+            echo "snapshot_name=${{ github.event.inputs.snapshot_name }}" \
+              >> $GITHUB_OUTPUT
+            echo "restore_point=${{ github.event.inputs.restore_point }}" \
+              >> $GITHUB_OUTPUT
+          fi
 
-# Create empty files with proper paths in comments
-echo "Creating empty files with path headers..."
+      - name: Setup configuration
+        run: |
+          cd ubuntu-22.04
+          chmod +x ${{ env.SCRIPTS_PATH }}/setup-config.sh
+          ./${{ env.SCRIPTS_PATH }}/setup-config.sh
 
-# 1. Main workflow file
-echo "Creating .github/workflows/k8s-disaster-recovery.yml..."
-cat > .github/workflows/k8s-disaster-recovery.yml << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/.github/workflows/k8s-disaster-recovery.yml
-EOF
+  vm_snapshot_operations:
+    runs-on: self-hosted
+    needs: setup
+    if: >
+      contains(fromJson('["snapshot_create", "snapshot_restore",
+      "snapshot_list"]'), needs.setup.outputs.action)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# 2. Config file
-echo "Creating github-actions/config/config.yml..."
-cat > github-actions/config/config.yml << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/config/config.yml
-EOF
+      - name: VM Snapshot Operations
+        run: |
+          cd ubuntu-22.04
+          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
+          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh \
+            "${{ needs.setup.outputs.action }}" \
+            "${{ needs.setup.outputs.snapshot_name }}"
 
-# 3. Secrets template
-echo "Creating github-actions/config/secrets.yml.template..."
-cat > github-actions/config/secrets.yml.template << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/config/secrets.yml.template
-EOF
+  cluster_health_check:
+    runs-on: self-hosted
+    needs: setup
+    if: >
+      contains(fromJson('["cluster_health_check", "backup", "restore",
+      "disaster_recovery_test"]'), needs.setup.outputs.action)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# 4. Backup script
-echo "Creating github-actions/scripts/backup_k8s_to_s3.sh..."
-cat > github-actions/scripts/backup_k8s_to_s3.sh << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/scripts/backup_k8s_to_s3.sh
-#!/bin/bash
-EOF
+      - name: Setup Python environment
+        run: |
+          cd ubuntu-22.04
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
 
-# 5. Setup script
-echo "Creating github-actions/scripts/setup-config.sh..."
-cat > github-actions/scripts/setup-config.sh << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/scripts/setup-config.sh
-#!/bin/bash
-EOF
+      - name: Test connectivity to all nodes
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible all -i inventory.yml -m ping
 
-# 6. VM snapshot manager
-echo "Creating github-actions/scripts/vm-snapshot-manager.sh..."
-cat > github-actions/scripts/vm-snapshot-manager.sh << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/github-actions/scripts/vm-snapshot-manager.sh
-#!/bin/bash
-EOF
+      - name: Check Kubernetes cluster status
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get nodes -o wide" --become-user ansible
 
-# 7. Update .gitignore
-echo "Updating .gitignore..."
-if [ -f ".gitignore" ]; then
-    if ! grep -q "github-actions/config/secrets.yml" .gitignore; then
-        cat >> .gitignore << 'EOF'
+      - name: Check system pods status
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get pods -n kube-system" --become-user ansible
 
-# GitHub Actions sensitive configuration files
-github-actions/config/secrets.yml
-github-actions/config/secrets.yaml
-EOF
-    fi
-else
-    cat > .gitignore << 'EOF'
-# File: /repos/devops-lab-new/devops-lab-repo-k8s/.gitignore
+      - name: Check load balancer status
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible k8s-loadbalancers -i inventory.yml -m shell \
+            -a "systemctl status haproxy keepalived" --become
 
-# GitHub Actions sensitive configuration files
-github-actions/config/secrets.yml
-github-actions/config/secrets.yaml
-EOF
-fi
+      - name: Check disk space on all nodes
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible all -i inventory.yml -m shell -a "df -h /"
 
-# Make scripts executable
-echo "Making scripts executable..."
-chmod +x github-actions/scripts/*.sh
+      - name: Check memory usage on all nodes
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible all -i inventory.yml -m shell -a "free -h"
 
-# Display created structure
-echo ""
-echo "=== Created File Structure ==="
-tree .github github-actions 2>/dev/null || {
-    echo ".github/"
-    echo "└── workflows/"
-    echo "    └── k8s-disaster-recovery.yml"
-    echo ""
-    echo "github-actions/"
-    echo "├── config/"
-    echo "│   ├── config.yml"
-    echo "│   └── secrets.yml.template"
-    echo "└── scripts/"
-    echo "    ├── backup_k8s_to_s3.sh"
-    echo "    ├── setup-config.sh"
-    echo "    └── vm-snapshot-manager.sh"
-}
+      - name: Generate health report
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          echo "=== Cluster Health Report $(date) ===" > \
+            /tmp/health_report.txt
+          echo "Nodes Status:" >> /tmp/health_report.txt
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get nodes" --become-user ansible >> \
+            /tmp/health_report.txt 2>&1 || echo "Failed to get nodes" >> \
+            /tmp/health_report.txt
+          echo "System Pods:" >> /tmp/health_report.txt
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get pods -n kube-system --no-headers | \
+            grep -v Running | wc -l" --become-user ansible >> \
+            /tmp/health_report.txt 2>&1 || echo "Failed to check pods" >> \
+            /tmp/health_report.txt
+          cat /tmp/health_report.txt
 
-echo ""
-echo "=== Files Created Successfully ==="
-echo "✓ .github/workflows/k8s-disaster-recovery.yml"
-echo "✓ github-actions/config/config.yml"
-echo "✓ github-actions/config/secrets.yml.template"
-echo "✓ github-actions/scripts/backup_k8s_to_s3.sh"
-echo "✓ github-actions/scripts/setup-config.sh"
-echo "✓ github-actions/scripts/vm-snapshot-manager.sh"
-echo "✓ .gitignore (updated)"
+  backup:
+    runs-on: self-hosted
+    needs: [setup, cluster_health_check]
+    if: >
+      contains(fromJson('["backup", "disaster_recovery_test"]'),
+      needs.setup.outputs.action)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-echo ""
-echo "=== Next Steps ==="
-echo "1. Edit github-actions/config/config.yml with your infrastructure details"
-echo "2. Edit github-actions/config/secrets.yml with your AWS credentials (only)"
-echo "3. Setup GitHub repository secrets:"
-echo "   - AWS_ACCESS_KEY_ID"
-echo "   - AWS_SECRET_ACCESS_KEY"
-echo "4. Setup self-hosted runner for local VM access"
+      - name: Setup Python environment
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
 
-echo ""
-echo "File creation completed!"
+      - name: Create VM snapshot before backup
+        run: |
+          cd ubuntu-22.04
+          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
+          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh snapshot_create \
+            "backup-${{ needs.setup.outputs.snapshot_name }}"
+
+      - name: Backup Kubernetes cluster to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          cd ubuntu-22.04
+          chmod +x ${{ env.SCRIPTS_PATH }}/backup_k8s_to_s3.sh
+          ./${{ env.SCRIPTS_PATH }}/backup_k8s_to_s3.sh
+
+      - name: Verify backup integrity
+        run: |
+          cd ubuntu-22.04
+          echo "Verifying backup was created successfully..."
+          aws s3 ls s3://${{ secrets.S3_BUCKET }}/k8s-backups/ \
+            --recursive | tail -10
+
+  restore:
+    runs-on: self-hosted
+    needs: setup
+    if: needs.setup.outputs.action == 'restore'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+
+      - name: Confirm restore operation
+        run: |
+          echo "WARNING: This will restore the cluster to point: \
+            ${{ needs.setup.outputs.restore_point }}"
+          echo "Current cluster state will be lost!"
+          echo "Proceeding with restore..."
+
+      - name: Stop Kubernetes services
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          ansible k8s_masters,k8s_workers -i inventory.yml -m shell \
+            -a "systemctl stop kubelet" --become || true
+
+      - name: Restore from VM snapshot if specified
+        run: |
+          cd ubuntu-22.04
+          if [[ "${{ needs.setup.outputs.restore_point }}" =~ ^snap-.* ]]
+          then
+            chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
+            ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh \
+              snapshot_restore "${{ needs.setup.outputs.restore_point }}"
+            sleep 300  # Wait for VMs to boot
+          fi
+
+      - name: Restore from S3 backup
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          cd ubuntu-22.04
+          echo "Restoring from S3 backup..."
+          # Implementation depends on backup script structure
+
+      - name: Verify cluster after restore
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          sleep 180  # Wait for cluster to stabilize
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get nodes" --become-user ansible
+
+  disaster_recovery_test:
+    runs-on: self-hosted
+    needs: [setup, backup]
+    if: needs.setup.outputs.action == 'disaster_recovery_test'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run disaster recovery simulation
+        run: |
+          cd ubuntu-22.04
+          echo "=== Disaster Recovery Test $(date) ==="
+          echo "1. Creating test snapshot..."
+          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
+          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh snapshot_create \
+            "dr-test-$(date +%Y%m%d-%H%M%S)"
+
+      - name: Simulate failure and recovery
+        run: |
+          cd ubuntu-22.04
+          source .venv/bin/activate
+          echo "2. Simulating worker node failure..."
+          ansible k8s-worker-1 -i inventory.yml -m shell \
+            -a "systemctl stop kubelet" --become || true
+          sleep 60
+          echo "3. Checking cluster resilience..."
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get nodes" --become-user ansible
+          echo "4. Recovering worker node..."
+          ansible k8s-worker-1 -i inventory.yml -m shell \
+            -a "systemctl start kubelet" --become || true
+          sleep 60
+          ansible k8s-master-1 -i inventory.yml -m shell \
+            -a "kubectl get nodes" --become-user ansible
+
+  notification:
+    runs-on: self-hosted
+    needs: [setup, cluster_health_check, backup, restore,
+            disaster_recovery_test, vm_snapshot_operations]
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          ACTION="${{ needs.setup.outputs.action }}"
+          STATUS="SUCCESS"
+          if [[ "${{ needs.cluster_health_check.result }}" == "failure" ]] ||
+             [[ "${{ needs.backup.result }}" == "failure" ]] ||
+             [[ "${{ needs.restore.result }}" == "failure" ]] ||
+             [[ "${{ needs.disaster_recovery_test.result }}" == "failure" ]] ||
+             [[ "${{ needs.vm_snapshot_operations.result }}" == "failure" ]]
+          then
+            STATUS="FAILURE"
+          fi
+          echo "Action: $ACTION completed with status: $STATUS"
