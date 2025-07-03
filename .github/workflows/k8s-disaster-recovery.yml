@@ -1,320 +1,368 @@
----
-name: "Kubernetes Disaster Recovery and Infrastructure Management"
+# File: /repos/devops-lab-new/devops-lab-repo-k8s/.github/workflows/k8s-disaster-recovery.yml
+name: Kubernetes Disaster Recovery
 
 on:
   workflow_dispatch:
     inputs:
-      action:
-        description: 'Action to perform'
-        required: true
-        default: 'backup'
-        type: choice
-        options:
-          - backup
-          - restore
-          - snapshot_create
-          - snapshot_restore
-          - snapshot_list
-          - cluster_health_check
-          - disaster_recovery_test
       snapshot_name:
-        description: 'Snapshot name (for snapshot operations)'
+        description: 'VM snapshot name to restore'
+        required: true
+        default: 'clean-install'
+        type: string
+      backup_before_restore:
+        description: 'Backup current K8s state before restore'
         required: false
-        default: 'auto-$(date +%Y%m%d-%H%M%S)'
-      restore_point:
-        description: 'Restore point (snapshot name or backup date)'
+        default: true
+        type: boolean
+      restore_applications:
+        description: 'Restore applications after K8s install'
         required: false
-        default: 'latest'
-
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM
-    - cron: '0 */6 * * *'  # Every 6 hours for health checks
-
-env:
-  ANSIBLE_HOST_KEY_CHECKING: false
-  ANSIBLE_STDOUT_CALLBACK: yaml
-  CONFIG_PATH: github-actions/config
-  SCRIPTS_PATH: github-actions/scripts
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Dry run mode (validate only)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  setup:
+  disaster-recovery:
     runs-on: self-hosted
-    outputs:
-      action: ${{ steps.determine_action.outputs.action }}
-      snapshot_name: ${{ steps.determine_action.outputs.snapshot_name }}
-      restore_point: ${{ steps.determine_action.outputs.restore_point }}
+    timeout-minutes: 120
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Determine action to perform
-        id: determine_action
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "$(date +%H)" = "02" ]; then
-              echo "action=backup" >> $GITHUB_OUTPUT
-            else
-              echo "action=cluster_health_check" >> $GITHUB_OUTPUT
+    - name: Load configuration
+      id: config
+      run: |
+        # Install yq if not present
+        if ! command -v yq &> /dev/null; then
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+        fi
+        
+        echo "Configuration loaded from github-actions/config/config.yml"
+
+    - name: Setup environment
+      run: |
+        # Read AWS configuration
+        AWS_REGION=$(yq '.backup.aws_region' github-actions/config/config.yml)
+        ANSIBLE_CONFIG_FILE=$(yq '.ansible.config_file' github-actions/config/config.yml)
+        
+        sudo apt-get update
+        sudo apt-get install -y awscli python3-pip
+        pip3 install uv
+        cd ubuntu-22.04
+        uv venv
+        uv pip install -r requirements.txt
+        
+        # Configure AWS using secrets
+        aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+        aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        aws configure set default.region "$AWS_REGION"
+        
+        # Set ansible environment
+        export ANSIBLE_HOST_KEY_CHECKING=false
+        export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
+
+    - name: Validate configuration
+      run: |
+        echo "=== Configuration Validation ==="
+        echo "Load Balancer: $(yq '.infrastructure.vm_ips.loadbalancer' github-actions/config/config.yml)"
+        echo "Masters: $(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml), $(yq '.infrastructure.vm_ips.master2' github-actions/config/config.yml)"
+        echo "Workers: $(yq '.infrastructure.vm_ips.worker1' github-actions/config/config.yml), $(yq '.infrastructure.vm_ips.worker2' github-actions/config/config.yml)"
+        echo "VIP: $(yq '.infrastructure.vm_ips.vip' github-actions/config/config.yml)"
+        echo "S3 Bucket: $(yq '.backup.s3_bucket' github-actions/config/config.yml)"
+        echo "Snapshot: ${{ github.event.inputs.snapshot_name }}"
+        echo "Dry Run: ${{ github.event.inputs.dry_run }}"
+        
+        # Validate S3 bucket access
+        S3_BUCKET=$(yq '.backup.s3_bucket' github-actions/config/config.yml)
+        if ! aws s3 ls "s3://$S3_BUCKET" >/dev/null 2>&1; then
+          echo "Warning: Cannot access S3 bucket $S3_BUCKET"
+        fi
+
+    - name: Create pre-disaster snapshot
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        # Create snapshot name with GitHub Actions info and timestamp
+        SNAPSHOT_NAME="github-actions-$(date +%Y%m%d-%H%M%S)"
+        
+        echo "=== Creating Pre-Disaster Snapshot ==="
+        echo "Snapshot name: $SNAPSHOT_NAME"
+        
+        # Read VM names from config
+        VM_NAMES=($(yq '.snapshots.vm_names[]' github-actions/config/config.yml))
+        
+        # Create snapshots for all VMs
+        for vm in "${VM_NAMES[@]}"; do
+          echo "Creating snapshot '$SNAPSHOT_NAME' for VM: $vm"
+          VBoxManage snapshot "$vm" take "$SNAPSHOT_NAME" --live --description "GitHub Actions backup before disaster recovery - Workflow: ${{ github.workflow }}, Run: ${{ github.run_number }}, Actor: ${{ github.actor }}, Timestamp: $(date -Iseconds)" || echo "Snapshot creation failed for $vm"
+        done
+        
+        # Save snapshot name for potential rollback
+        echo "$SNAPSHOT_NAME" > pre-disaster-snapshot.txt
+        echo "Pre-disaster snapshot created: $SNAPSHOT_NAME"
+
+    - name: Full Kubernetes backup to S3
+      if: github.event.inputs.backup_before_restore == 'true'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        echo "=== Full Kubernetes Backup to S3 ==="
+        
+        # Use the backup script which reads from config files
+        chmod +x github-actions/scripts/backup_k8s_to_s3.sh
+        github-actions/scripts/backup_k8s_to_s3.sh
+        
+        # Check if backup was successful
+        if [ -f "latest-backup.txt" ]; then
+          BACKUP_NAME=$(cat latest-backup.txt)
+          echo "Full backup completed: $BACKUP_NAME"
+        else
+          echo "Backup failed or cluster not accessible"
+          echo "no-backup" > latest-backup.txt
+        fi
+
+    - name: Stop VMs and restore snapshots
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        echo "Stopping all VMs and restoring snapshot: ${{ github.event.inputs.snapshot_name }}"
+        
+        # Read VM names from config
+        VM_NAMES=($(yq '.snapshots.vm_names[]' github-actions/config/config.yml))
+        
+        for vm in "${VM_NAMES[@]}"; do
+          echo "Restoring snapshot '${{ github.event.inputs.snapshot_name }}' for VM: $vm"
+          VBoxManage controlvm "$vm" poweroff 2>/dev/null || true
+          VBoxManage snapshot "$vm" restore "${{ github.event.inputs.snapshot_name }}" || echo "Restore failed for $vm"
+          VBoxManage startvm "$vm" --type headless
+        done
+        
+        echo "Waiting for VMs to start..."
+        sleep 60
+
+    - name: Wait for VMs to be ready
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        # Read configuration
+        VM_STARTUP_TIMEOUT=$(yq '.timeouts.vm_startup' github-actions/config/config.yml)
+        SSH_KEY_PATH=$(yq '.kubernetes.ssh_key_path' github-actions/config/config.yml)
+        MASTER_USER=$(yq '.kubernetes.master_user' github-actions/config/config.yml)
+        
+        VMS=(
+          "$(yq '.infrastructure.vm_ips.loadbalancer' github-actions/config/config.yml)"
+          "$(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml)"
+          "$(yq '.infrastructure.vm_ips.master2' github-actions/config/config.yml)"
+          "$(yq '.infrastructure.vm_ips.worker1' github-actions/config/config.yml)"
+          "$(yq '.infrastructure.vm_ips.worker2' github-actions/config/config.yml)"
+        )
+        
+        echo "Waiting for VMs to be SSH accessible..."
+        for vm in "${VMS[@]}"; do
+          echo "Checking $vm..."
+          timeout=$VM_STARTUP_TIMEOUT
+          while ! ssh -i "$SSH_KEY_PATH" -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$MASTER_USER@$vm" "echo 'VM ready'" 2>/dev/null; do
+            sleep 10
+            timeout=$((timeout-10))
+            if [ $timeout -le 0 ]; then
+              echo "Timeout waiting for $vm"
+              exit 1
             fi
-            echo "snapshot_name=auto-$(date +%Y%m%d-%H%M%S)" >> \
-              $GITHUB_OUTPUT
-            echo "restore_point=latest" >> $GITHUB_OUTPUT
+          done
+          echo "$vm is ready"
+        done
+
+    - name: Deploy Kubernetes cluster
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        # Read ansible configuration
+        ANSIBLE_CONFIG_FILE=$(yq '.ansible.config_file' github-actions/config/config.yml)
+        ANSIBLE_INVENTORY=$(yq '.ansible.inventory_file' github-actions/config/config.yml)
+        ANSIBLE_PLAYBOOK=$(yq '.ansible.playbook_path' github-actions/config/config.yml)
+        SSH_KEY_PATH=$(yq '.kubernetes.ssh_key_path' github-actions/config/config.yml)
+        MASTER_USER=$(yq '.kubernetes.master_user' github-actions/config/config.yml)
+        MASTER1_IP=$(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml)
+        
+        # Set ansible environment
+        export ANSIBLE_HOST_KEY_CHECKING=false
+        export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
+        
+        cd ubuntu-22.04
+        source .venv/bin/activate
+        
+        echo "Deploying Kubernetes HA cluster..."
+        ansible-playbook -i "$ANSIBLE_INVENTORY" "$ANSIBLE_PLAYBOOK" -v
+        
+        echo "Waiting for cluster to stabilize..."
+        sleep 60
+        
+        # Verify cluster is ready
+        ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get nodes -o wide"
+
+    - name: Restore applications
+      if: github.event.inputs.restore_applications == 'true' && github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        # Read configuration
+        S3_BUCKET=$(yq '.backup.s3_bucket' github-actions/config/config.yml)
+        MASTER1_IP=$(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml)
+        MASTER_USER=$(yq '.kubernetes.master_user' github-actions/config/config.yml)
+        SSH_KEY_PATH=$(yq '.kubernetes.ssh_key_path' github-actions/config/config.yml)
+        
+        if [ -f "latest-backup.txt" ]; then
+          BACKUP_DIR=$(cat latest-backup.txt)
+          
+          if [ "$BACKUP_DIR" != "no-backup" ]; then
+            echo "Downloading backup from S3..."
+            aws s3 cp "s3://$S3_BUCKET/backups/$BACKUP_DIR/" "./$BACKUP_DIR/" --recursive
+            
+            echo "Restoring applications..."
+            scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -r "$BACKUP_DIR" "$MASTER_USER@$MASTER1_IP:/tmp/"
+            ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "cd /tmp/$BACKUP_DIR && bash restore-full.sh"
+            
+            echo "Waiting for applications to start..."
+            sleep 60
           else
-            echo "action=${{ github.event.inputs.action }}" >> \
-              $GITHUB_OUTPUT
-            echo "snapshot_name=${{ github.event.inputs.snapshot_name }}" \
-              >> $GITHUB_OUTPUT
-            echo "restore_point=${{ github.event.inputs.restore_point }}" \
-              >> $GITHUB_OUTPUT
+            echo "No backup to restore"
           fi
+        else
+          echo "No backup information found"
+        fi
 
-      - name: Setup configuration
-        run: |
-          cd ubuntu-22.04
-          chmod +x ${{ env.SCRIPTS_PATH }}/setup-config.sh
-          ./${{ env.SCRIPTS_PATH }}/setup-config.sh
+    - name: Verify cluster and applications
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        #!/bin/bash
+        set -e
+        
+        # Read configuration
+        SSH_KEY_PATH=$(yq '.kubernetes.ssh_key_path' github-actions/config/config.yml)
+        MASTER_USER=$(yq '.kubernetes.master_user' github-actions/config/config.yml)
+        MASTER1_IP=$(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml)
+        
+        echo "=== Cluster Verification ==="
+        ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get nodes -o wide"
+        
+        echo -e "\n=== System Pods ==="
+        ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get pods -n kube-system"
+        
+        echo -e "\n=== All Applications ==="
+        ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get pods --all-namespaces"
+        
+        echo -e "\n=== Services ==="
+        ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get svc --all-namespaces"
 
-  vm_snapshot_operations:
-    runs-on: self-hosted
-    needs: setup
-    if: >
-      contains(fromJson('["snapshot_create", "snapshot_restore",
-      "snapshot_list"]'), needs.setup.outputs.action)
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Create deployment summary
+      if: always()
+      run: |
+        #!/bin/bash
+        
+        # Read configuration
+        SSH_KEY_PATH=$(yq '.kubernetes.ssh_key_path' github-actions/config/config.yml)
+        MASTER_USER=$(yq '.kubernetes.master_user' github-actions/config/config.yml)
+        MASTER1_IP=$(yq '.infrastructure.vm_ips.master1' github-actions/config/config.yml)
+        VIP=$(yq '.infrastructure.vm_ips.vip' github-actions/config/config.yml)
+        LOADBALANCER_IP=$(yq '.infrastructure.vm_ips.loadbalancer' github-actions/config/config.yml)
+        HAPROXY_STATS_PORT=$(yq '.infrastructure.ports.haproxy_stats' github-actions/config/config.yml)
+        K8S_API_PORT=$(yq '.infrastructure.ports.k8s_api' github-actions/config/config.yml)
+        
+        cat > deployment-summary.md << EOF
+        # Kubernetes Disaster Recovery Summary
+        
+        **Date:** $(date)
+        **Snapshot Restored:** ${{ github.event.inputs.snapshot_name }}
+        **Backup Created:** $([ -f latest-backup.txt ] && cat latest-backup.txt || echo "N/A")
+        **Applications Restored:** ${{ github.event.inputs.restore_applications }}
+        **Dry Run Mode:** ${{ github.event.inputs.dry_run }}
+        **Status:** ${{ job.status }}
+        
+        ## Cluster Status
+        \`\`\`
+        $(ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$MASTER_USER@$MASTER1_IP" "kubectl get nodes" 2>/dev/null || echo "Could not retrieve cluster status")
+        \`\`\`
+        
+        ## Access Information
+        - **SSH to master:** ssh $MASTER_USER@$MASTER1_IP -i $SSH_KEY_PATH
+        - **HAProxy Stats:** http://$LOADBALANCER_IP:$HAPROXY_STATS_PORT/stats (admin/admin)
+        - **Load Balancer VIP:** $VIP:$K8S_API_PORT
+        
+        ## Quick Commands
+        \`\`\`bash
+        kubectl get nodes
+        kubectl get pods --all-namespaces
+        kubectl get svc --all-namespaces
+        \`\`\`
+        EOF
+        
+        echo "Deployment summary created"
+        cat deployment-summary.md
 
-      - name: VM Snapshot Operations
-        run: |
-          cd ubuntu-22.04
-          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
-          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh \
-            "${{ needs.setup.outputs.action }}" \
-            "${{ needs.setup.outputs.snapshot_name }}"
-
-  cluster_health_check:
-    runs-on: self-hosted
-    needs: setup
-    if: >
-      contains(fromJson('["cluster_health_check", "backup", "restore",
-      "disaster_recovery_test"]'), needs.setup.outputs.action)
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python environment
-        run: |
-          cd ubuntu-22.04
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Test connectivity to all nodes
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible all -i inventory.yml -m ping
-
-      - name: Check Kubernetes cluster status
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get nodes -o wide" --become-user ansible
-
-      - name: Check system pods status
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get pods -n kube-system" --become-user ansible
-
-      - name: Check load balancer status
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible k8s-loadbalancers -i inventory.yml -m shell \
-            -a "systemctl status haproxy keepalived" --become
-
-      - name: Check disk space on all nodes
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible all -i inventory.yml -m shell -a "df -h /"
-
-      - name: Check memory usage on all nodes
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible all -i inventory.yml -m shell -a "free -h"
-
-      - name: Generate health report
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          echo "=== Cluster Health Report $(date) ===" > \
-            /tmp/health_report.txt
-          echo "Nodes Status:" >> /tmp/health_report.txt
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get nodes" --become-user ansible >> \
-            /tmp/health_report.txt 2>&1 || echo "Failed to get nodes" >> \
-            /tmp/health_report.txt
-          echo "System Pods:" >> /tmp/health_report.txt
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get pods -n kube-system --no-headers | \
-            grep -v Running | wc -l" --become-user ansible >> \
-            /tmp/health_report.txt 2>&1 || echo "Failed to check pods" >> \
-            /tmp/health_report.txt
-          cat /tmp/health_report.txt
-
-  backup:
-    runs-on: self-hosted
-    needs: [setup, cluster_health_check]
-    if: >
-      contains(fromJson('["backup", "disaster_recovery_test"]'),
-      needs.setup.outputs.action)
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python environment
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-
-      - name: Create VM snapshot before backup
-        run: |
-          cd ubuntu-22.04
-          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
-          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh snapshot_create \
-            "backup-${{ needs.setup.outputs.snapshot_name }}"
-
-      - name: Backup Kubernetes cluster to S3
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          S3_BUCKET: ${{ secrets.S3_BUCKET }}
-        run: |
-          cd ubuntu-22.04
-          chmod +x ${{ env.SCRIPTS_PATH }}/backup_k8s_to_s3.sh
-          ./${{ env.SCRIPTS_PATH }}/backup_k8s_to_s3.sh
-
-      - name: Verify backup integrity
-        run: |
-          cd ubuntu-22.04
-          echo "Verifying backup was created successfully..."
-          aws s3 ls s3://${{ secrets.S3_BUCKET }}/k8s-backups/ \
-            --recursive | tail -10
-
-  restore:
-    runs-on: self-hosted
-    needs: setup
-    if: needs.setup.outputs.action == 'restore'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python environment
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-
-      - name: Confirm restore operation
-        run: |
-          echo "WARNING: This will restore the cluster to point: \
-            ${{ needs.setup.outputs.restore_point }}"
-          echo "Current cluster state will be lost!"
-          echo "Proceeding with restore..."
-
-      - name: Stop Kubernetes services
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          ansible k8s_masters,k8s_workers -i inventory.yml -m shell \
-            -a "systemctl stop kubelet" --become || true
-
-      - name: Restore from VM snapshot if specified
-        run: |
-          cd ubuntu-22.04
-          if [[ "${{ needs.setup.outputs.restore_point }}" =~ ^snap-.* ]]
-          then
-            chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
-            ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh \
-              snapshot_restore "${{ needs.setup.outputs.restore_point }}"
-            sleep 300  # Wait for VMs to boot
-          fi
-
-      - name: Restore from S3 backup
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-          S3_BUCKET: ${{ secrets.S3_BUCKET }}
-        run: |
-          cd ubuntu-22.04
-          echo "Restoring from S3 backup..."
-          # Implementation depends on backup script structure
-
-      - name: Verify cluster after restore
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          sleep 180  # Wait for cluster to stabilize
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get nodes" --become-user ansible
-
-  disaster_recovery_test:
-    runs-on: self-hosted
-    needs: [setup, backup]
-    if: needs.setup.outputs.action == 'disaster_recovery_test'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run disaster recovery simulation
-        run: |
-          cd ubuntu-22.04
-          echo "=== Disaster Recovery Test $(date) ==="
-          echo "1. Creating test snapshot..."
-          chmod +x ${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh
-          ./${{ env.SCRIPTS_PATH }}/vm-snapshot-manager.sh snapshot_create \
-            "dr-test-$(date +%Y%m%d-%H%M%S)"
-
-      - name: Simulate failure and recovery
-        run: |
-          cd ubuntu-22.04
-          source .venv/bin/activate
-          echo "2. Simulating worker node failure..."
-          ansible k8s-worker-1 -i inventory.yml -m shell \
-            -a "systemctl stop kubelet" --become || true
-          sleep 60
-          echo "3. Checking cluster resilience..."
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get nodes" --become-user ansible
-          echo "4. Recovering worker node..."
-          ansible k8s-worker-1 -i inventory.yml -m shell \
-            -a "systemctl start kubelet" --become || true
-          sleep 60
-          ansible k8s-master-1 -i inventory.yml -m shell \
-            -a "kubectl get nodes" --become-user ansible
-
-  notification:
-    runs-on: self-hosted
-    needs: [setup, cluster_health_check, backup, restore,
-            disaster_recovery_test, vm_snapshot_operations]
-    if: always()
-    steps:
-      - name: Send notification
-        run: |
-          ACTION="${{ needs.setup.outputs.action }}"
-          STATUS="SUCCESS"
-          if [[ "${{ needs.cluster_health_check.result }}" == "failure" ]] ||
-             [[ "${{ needs.backup.result }}" == "failure" ]] ||
-             [[ "${{ needs.restore.result }}" == "failure" ]] ||
-             [[ "${{ needs.disaster_recovery_test.result }}" == "failure" ]] ||
-             [[ "${{ needs.vm_snapshot_operations.result }}" == "failure" ]]
-          then
-            STATUS="FAILURE"
-          fi
-          echo "Action: $ACTION completed with status: $STATUS"
+    - name: Send notification
+      if: always() && vars.NOTIFICATIONS_ENABLED == 'true'
+      run: |
+        #!/bin/bash
+        
+        # Read configuration  
+        VIP=$(yq '.infrastructure.vm_ips.vip' github-actions/config/config.yml)
+        K8S_API_PORT=$(yq '.infrastructure.ports.k8s_api' github-actions/config/config.yml)
+        
+        # Check if notifications are enabled
+        NOTIFICATIONS_ENABLED=$(yq '.notifications.slack_enabled' github-actions/config/config.yml)
+        
+        if [ "$NOTIFICATIONS_ENABLED" != "true" ]; then
+          echo "Notifications disabled in config, skipping"
+          exit 0
+        fi
+        
+        if [ "${{ job.status }}" == "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"  
+          COLOR="danger"
+        fi
+        
+        DRY_RUN_TEXT=""
+        if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          DRY_RUN_TEXT=" (DRY RUN)"
+        fi
+        
+        # Only send if webhook is configured
+        if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"K8s Disaster Recovery $STATUS$DRY_RUN_TEXT\",
+                \"fields\": [
+                  {\"title\": \"Snapshot\", \"value\": \"${{ github.event.inputs.snapshot_name }}\", \"short\": true},
+                  {\"title\": \"Repository\", \"value\": \"${{ github.repository }}\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"VIP\", \"value\": \"$VIP:$K8S_API_PORT\", \"short\": true}
+                ]
+              }]
+            }" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}" || echo "Failed to send Slack notification"
+        else
+          echo "No Slack webhook configured, skipping notification"
+        fi
+        
+        echo "Recovery completed with status: ${{ job.status }}"
