@@ -3,13 +3,11 @@ name: Kubernetes Disaster Recovery
 
 on:
   workflow_dispatch:
-  push:
-    branches: [WIP]
     inputs:
       snapshot_name:
         description: 'VM snapshot name to restore'
         required: true
-        default: 'clean-install'
+        default: 'After installation from Vagrant'
         type: string
       backup_before_restore:
         description: 'Backup current K8s state before restore'
@@ -24,8 +22,34 @@ on:
       dry_run:
         description: 'Dry run mode (validate only)'
         required: false
-        default: false
+        default: true
         type: boolean
+
+# on:
+#   workflow_dispatch:
+#   push:
+#     branches: [WIP]
+#     inputs:
+#       snapshot_name:
+#         description: 'VM snapshot name to restore'
+#         required: true
+#         default: 'clean-install'
+#         type: string
+#       backup_before_restore:
+#         description: 'Backup current K8s state before restore'
+#         required: false
+#         default: true
+#         type: boolean
+#       restore_applications:
+#         description: 'Restore applications after K8s install'
+#         required: false
+#         default: true
+#         type: boolean
+#       dry_run:
+#         description: 'Dry run mode (validate only)'
+#         required: false
+#         default: false
+#         type: boolean
 
 jobs:
   disaster-recovery:
