@@ -3,6 +3,8 @@ name: Kubernetes Disaster Recovery
 
 on:
   workflow_dispatch:
+  push:
+    branches: [WIP]
     inputs:
       snapshot_name:
         description: 'VM snapshot name to restore'
