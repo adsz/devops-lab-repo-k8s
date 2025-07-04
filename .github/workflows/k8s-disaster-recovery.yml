@@ -59,8 +59,8 @@ jobs:
         echo "AWS_DEFAULT_REGION=$AWS_REGION" >> $GITHUB_ENV
         
         # Install for Oracle Linux (dnf instead of apt)
-        # sudo dnf install -y awscli python3-pip || echo "Packages may already be installed"
-        # pip3 install uv
+        sudo dnf install -y awscli python3-pip || echo "Packages may already be installed"
+        pip3 install uv
         
         # Create separate venv for workflow (avoid conflict with local .venv)
         uv venv .venv-github-actions
@@ -75,8 +75,8 @@ jobs:
         export ANSIBLE_HOST_KEY_CHECKING=false
         export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
         
-        # Make venv available for subsequent steps
-        echo "source $(pwd)/.venv-github-actions/bin/activate" >> $GITHUB_ENV
+        # Save venv path for subsequent steps
+        echo "VENV_PATH=$(pwd)/.venv-github-actions" >> $GITHUB_ENV
 
     - name: Validate configuration
       run: |
@@ -220,7 +220,7 @@ jobs:
         export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
         
         cd ubuntu-22.04
-        source ../.venv-github-actions/bin/activate
+        source ${{ env.VENV_PATH }}/bin/activate
         
         echo "Deploying Kubernetes HA cluster..."
         ansible-playbook -i "$ANSIBLE_INVENTORY" "$ANSIBLE_PLAYBOOK" -v
