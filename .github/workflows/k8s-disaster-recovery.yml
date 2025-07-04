@@ -25,32 +25,6 @@ on:
         default: true
         type: boolean
 
-# on:
-#   workflow_dispatch:
-#   push:
-#     branches: [WIP]
-#     inputs:
-#       snapshot_name:
-#         description: 'VM snapshot name to restore'
-#         required: true
-#         default: 'clean-install'
-#         type: string
-#       backup_before_restore:
-#         description: 'Backup current K8s state before restore'
-#         required: false
-#         default: true
-#         type: boolean
-#       restore_applications:
-#         description: 'Restore applications after K8s install'
-#         required: false
-#         default: true
-#         type: boolean
-#       dry_run:
-#         description: 'Dry run mode (validate only)'
-#         required: false
-#         default: false
-#         type: boolean
-
 jobs:
   disaster-recovery:
     runs-on: self-hosted
@@ -71,27 +45,27 @@ jobs:
         
         echo "Configuration loaded from github-actions/config/config.yml"
 
-    # - name: Setup environment
-    #   run: |
-    #     # Read AWS configuration
-    #     AWS_REGION=$(yq '.backup.aws_region' github-actions/config/config.yml)
-    #     ANSIBLE_CONFIG_FILE=$(yq '.ansible.config_file' github-actions/config/config.yml)
+    - name: Setup environment
+      run: |
+        # Read AWS configuration
+        AWS_REGION=$(yq '.backup.aws_region' github-actions/config/config.yml)
+        ANSIBLE_CONFIG_FILE=$(yq '.ansible.config_file' github-actions/config/config.yml)
         
-    #     sudo apt-get update
-    #     sudo apt-get install -y awscli python3-pip
-    #     pip3 install uv
-    #     cd ubuntu-22.04
-    #     uv venv
-    #     uv pip install -r requirements.txt
+        # Install for Oracle Linux (dnf instead of apt)
+        sudo dnf install -y awscli python3-pip || echo "Packages may already be installed"
+        pip3 install uv
+        cd ubuntu-22.04
+        uv venv
+        uv pip install -r requirements.txt
         
-    #     # Configure AWS using secrets
-    #     aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
-    #     aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-    #     aws configure set default.region "$AWS_REGION"
+        # Configure AWS using secrets
+        aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+        aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+        aws configure set default.region "$AWS_REGION"
         
-    #     # Set ansible environment
-    #     export ANSIBLE_HOST_KEY_CHECKING=false
-    #     export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
+        # Set ansible environment
+        export ANSIBLE_HOST_KEY_CHECKING=false
+        export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
 
     - name: Validate configuration
       run: |
@@ -101,8 +75,9 @@ jobs:
         echo "Workers: $(yq '.infrastructure.vm_ips.worker1' github-actions/config/config.yml), $(yq '.infrastructure.vm_ips.worker2' github-actions/config/config.yml)"
         echo "VIP: $(yq '.infrastructure.vm_ips.vip' github-actions/config/config.yml)"
         echo "S3 Bucket: $(yq '.backup.s3_bucket' github-actions/config/config.yml)"
-        echo "Snapshot: ${{ github.event.inputs.snapshot_name }}"
-        echo "Dry Run: ${{ github.event.inputs.dry_run }}"
+        echo "Trigger: ${{ github.event_name }}"
+        echo "Snapshot: ${{ github.event.inputs.snapshot_name || 'default from config' }}"
+        echo "Dry Run: ${{ github.event.inputs.dry_run || 'false' }}"
         
         # Validate S3 bucket access
         S3_BUCKET=$(yq '.backup.s3_bucket' github-actions/config/config.yml)
