@@ -46,26 +46,37 @@ jobs:
         echo "Configuration loaded from github-actions/config/config.yml"
 
     - name: Setup environment
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       run: |
         # Read AWS configuration
         AWS_REGION=$(yq '.backup.aws_region' github-actions/config/config.yml)
         ANSIBLE_CONFIG_FILE=$(yq '.ansible.config_file' github-actions/config/config.yml)
         
-        # Install for Oracle Linux (dnf instead of apt)
-        sudo dnf install -y awscli python3-pip || echo "Packages may already be installed"
-        pip3 install uv
-        cd ubuntu-22.04
-        uv venv
-        uv pip install -r requirements.txt
+        # Set AWS region as environment variable for this session
+        export AWS_DEFAULT_REGION="$AWS_REGION"
+        echo "AWS_DEFAULT_REGION=$AWS_REGION" >> $GITHUB_ENV
         
-        # Configure AWS using secrets
-        aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
-        aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-        aws configure set default.region "$AWS_REGION"
+        # Install for Oracle Linux (dnf instead of apt)
+        # sudo dnf install -y awscli python3-pip || echo "Packages may already be installed"
+        # pip3 install uv
+        
+        # Create separate venv for workflow (avoid conflict with local .venv)
+        uv venv .venv-github-actions
+        source .venv-github-actions/bin/activate
+        uv pip install -r ubuntu-22.04/requirements.txt
+        
+        # Test AWS access (uses env vars automatically)
+        echo "Testing AWS access..."
+        aws sts get-caller-identity || echo "AWS access test failed"
         
         # Set ansible environment
         export ANSIBLE_HOST_KEY_CHECKING=false
         export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
+        
+        # Make venv available for subsequent steps
+        echo "source $(pwd)/.venv-github-actions/bin/activate" >> $GITHUB_ENV
 
     - name: Validate configuration
       run: |
@@ -112,6 +123,10 @@ jobs:
 
     - name: Full Kubernetes backup to S3
       if: github.event.inputs.backup_before_restore == 'true'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
       run: |
         #!/bin/bash
         set -e
@@ -205,7 +220,7 @@ jobs:
         export ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE"
         
         cd ubuntu-22.04
-        source .venv/bin/activate
+        source ../.venv-github-actions/bin/activate
         
         echo "Deploying Kubernetes HA cluster..."
         ansible-playbook -i "$ANSIBLE_INVENTORY" "$ANSIBLE_PLAYBOOK" -v
@@ -218,6 +233,10 @@ jobs:
 
     - name: Restore applications
       if: github.event.inputs.restore_applications == 'true' && github.event.inputs.dry_run == 'false'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
       run: |
         #!/bin/bash
         set -e
