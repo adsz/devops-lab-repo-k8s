@@ -95,6 +95,10 @@ jobs:
         echo "VENV_PATH=$(pwd)/.venv-github-actions" >> $GITHUB_ENV
 
     - name: Validate configuration
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
       run: |
         echo "=== Configuration Validation ==="
         echo "Load Balancer: $(yq '.infrastructure.vm_ips.loadbalancer' github-actions/config/config.yml)"
