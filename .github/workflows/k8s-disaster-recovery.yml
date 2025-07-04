@@ -31,6 +31,22 @@ jobs:
     timeout-minutes: 120
     
     steps:
+    - name: Check secrets
+      run: |
+        if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+          echo "AWS_ACCESS_KEY_ID is not set or empty"
+          exit 1
+        else
+          echo "AWS_ACCESS_KEY_ID is set"
+        fi
+
+        if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+          echo "AWS_SECRET_ACCESS_KEY is not set or empty"
+          exit 1
+        else
+          echo "AWS_SECRET_ACCESS_KEY is set"
+        fi
+
     - name: Checkout repository
       uses: actions/checkout@v4
 
