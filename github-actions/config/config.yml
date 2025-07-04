@@ -17,7 +17,7 @@ infrastructure:
 
 backup:
   s3_bucket: "ol01-github-actions-k8s"
-  aws_region: "eu-central-1"
+  aws_region: "eu-west-1"
   retention_days: 30
   backup_schedule: "0 2 * * *"
 
