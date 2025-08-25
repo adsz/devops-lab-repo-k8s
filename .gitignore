@@ -7,6 +7,14 @@ wip/*
 **/*.log
 howto.txt
 howto.md
+
+# Claude-related files (should never be committed)
+CLAUDE.md
+claude.md
+**/CLAUDE.md
+**/claude.md
+.claude/
+**/.claude/
 **/scripts/other
 
 # GitHub Actions sensitive configuration files
