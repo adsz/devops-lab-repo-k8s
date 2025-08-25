@@ -6,6 +6,7 @@ wip/*
 *backup*
 **/*.log
 howto.txt
+howto.md
 **/scripts/other
 
 # GitHub Actions sensitive configuration files
@@ -84,3 +85,30 @@ tmp/
 temp/
 .tmpgithub-actions/config/secrets.yaml
 github-actions/config/secrets.yml.template
+
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+package.json
+package-lock.json
+**/package.json
+**/package-lock.json
+# Environment variables
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task files
+# tasks.json
+# tasks/ 
