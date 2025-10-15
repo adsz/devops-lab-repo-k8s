@@ -18,7 +18,8 @@ creds_file = File.join(File.dirname(__FILE__), 'creds.yml')
 unless File.exist?(creds_file)
   raise "Credentials file 'creds.yml' not found!"
 end
-settings = YAML.load_file(creds_file)
+creds = YAML.load_file(creds_file)
+settings.merge!(creds)
 
 Vagrant.configure("2") do |config|
   config.vm.box = settings['box']
