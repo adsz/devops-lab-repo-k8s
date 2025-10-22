@@ -125,6 +125,28 @@ resource "aws_iam_role_policy_attachment" "telegram_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Allow Lambda to read the Telegram credentials secret
+resource "aws_iam_role_policy" "telegram_lambda_secrets" {
+  count = var.telegram_secret_arn != "" ? 1 : 0
+
+  name = "${var.cluster_name}-telegram-secrets"
+  role = aws_iam_role.telegram_lambda_role[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = var.telegram_secret_arn
+      }
+    ]
+  })
+}
+
 # SNS subscription for Telegram Lambda
 resource "aws_sns_topic_subscription" "backup_notifications_telegram" {
   count     = var.telegram_secret_arn != "" ? 1 : 0
