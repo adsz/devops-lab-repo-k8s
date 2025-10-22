@@ -3,10 +3,21 @@ wip/*
 **/vagrant/creds.yml
 **/.venv
 *bak*
-*backup*
+**/backup*/
 **/*.log
 howto.txt
 howto.md
+
+# Local secret overrides (never commit)
+k8s_cluster_deployments/velero/cloud-credentials.conf
+k8s_cluster_deployments/etcd-backup/aws-credentials.conf
+k8s_cluster_deployments/etcd-backup/aws-credentials.secret.yaml
+
+# AI helper docs (handled locally only)
+AGENTS.md
+**/AGENTS.md
+*.ai.md
+*.ai.txt
 
 # Claude-related files (should never be committed)
 CLAUDE.md
