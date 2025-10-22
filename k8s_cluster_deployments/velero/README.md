@@ -53,7 +53,15 @@ before the next `terraform apply` to avoid Terraform attempting to delete them.
 
 Optional: if you maintain an S3 Storage Lens group that targets the `velero/` and `etcd-full-backup/` prefixes (for example `k8s-backups`), set the group name in `storage_lens_group` inside `terraform.tfvars`. The CloudWatch dashboard will then display both the bucket-wide metrics and prefix-specific size/object counts. Leave the value blank to omit the prefix widget.
 
-If you enable the Telegram notifier (set bot token/chat ID), Terraform now provisions the `/aws/lambda/<cluster>-telegram-notifier` log group automatically and the dashboard widget lights up. Without the notifier, the widget is hidden so you won't see any "log group not found" errors.
+For Telegram notifications, create a Secrets Manager entry once (outside Terraform), for example:
+
+```bash
+aws secretsmanager create-secret \
+  --name k8s-production-telegram-notifier \
+  --secret-string '{"TELEGRAM_TOKEN":"<token>","TELEGRAM_CHAT_ID":"<chat_id>"}'
+```
+
+Then set `telegram_secret_arn = "arn:aws:secretsmanager:...:secret:k8s-production-telegram-notifier"` in `terraform.tfvars` (or export `TF_VAR_telegram_secret_arn`). Terraform will provision the Lambda, log group `/aws/lambda/<cluster>-telegram-notifier`, and wire the CloudWatch widget automatically. Without the secret ARN the notifier stays disabled and the widget is hidden, preventing "log group not found" errors.
 
 ## Cleanup
 ```bash

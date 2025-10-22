@@ -88,8 +88,7 @@ module "sns_notifications" {
   notification_emails = var.notification_emails
   alert_emails        = var.alert_emails
   slack_webhook_url   = var.slack_webhook_url
-  telegram_bot_token  = var.telegram_bot_token
-  telegram_chat_id    = var.telegram_chat_id
+  telegram_secret_arn = var.telegram_secret_arn
   jenkins_role_arn    = module.iam_backup.jenkins_role_arn
   common_tags         = local.common_tags
 }

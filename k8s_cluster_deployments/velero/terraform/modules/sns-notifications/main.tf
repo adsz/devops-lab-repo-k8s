@@ -56,7 +56,7 @@ resource "aws_sns_topic_subscription" "backup_notifications_slack" {
 
 # Lambda function for Telegram notifications
 resource "aws_lambda_function" "telegram_notifier" {
-  count         = var.telegram_bot_token != "" ? 1 : 0
+  count         = var.telegram_secret_arn != "" ? 1 : 0
   filename      = data.archive_file.telegram_lambda_zip[0].output_path
   function_name = "${var.cluster_name}-telegram-notifier"
   role          = aws_iam_role.telegram_lambda_role[0].arn
@@ -69,8 +69,7 @@ resource "aws_lambda_function" "telegram_notifier" {
 
   environment {
     variables = {
-      TELEGRAM_BOT_TOKEN = var.telegram_bot_token
-      TELEGRAM_CHAT_ID   = var.telegram_chat_id
+      TELEGRAM_SECRET_ARN = var.telegram_secret_arn
     }
   }
 
@@ -79,7 +78,7 @@ resource "aws_lambda_function" "telegram_notifier" {
 
 # Dedicated log group for the Telegram notifier (ensures dashboard widget works even before first invocation)
 resource "aws_cloudwatch_log_group" "telegram_lambda" {
-  count             = var.telegram_bot_token != "" ? 1 : 0
+  count             = var.telegram_secret_arn != "" ? 1 : 0
   name              = "/aws/lambda/${var.cluster_name}-telegram-notifier"
   retention_in_days = 30
 
@@ -88,22 +87,19 @@ resource "aws_cloudwatch_log_group" "telegram_lambda" {
 
 # Lambda function code for Telegram
 data "archive_file" "telegram_lambda_zip" {
-  count       = var.telegram_bot_token != "" ? 1 : 0
+  count       = var.telegram_secret_arn != "" ? 1 : 0
   type        = "zip"
   output_path = "/tmp/telegram_lambda.zip"
   
   source {
-    content = templatefile("${path.module}/lambda/telegram_notifier.py", {
-      bot_token = var.telegram_bot_token
-      chat_id   = var.telegram_chat_id
-    })
+    content = templatefile("${path.module}/lambda/telegram_notifier.py", {})
     filename = "lambda_function.py"
   }
 }
 
 # IAM role for Telegram Lambda
 resource "aws_iam_role" "telegram_lambda_role" {
-  count = var.telegram_bot_token != "" ? 1 : 0
+  count = var.telegram_secret_arn != "" ? 1 : 0
   name  = "${var.cluster_name}-telegram-lambda-role"
 
   assume_role_policy = jsonencode({
@@ -124,14 +120,14 @@ resource "aws_iam_role" "telegram_lambda_role" {
 
 # Lambda basic execution policy
 resource "aws_iam_role_policy_attachment" "telegram_lambda_basic" {
-  count      = var.telegram_bot_token != "" ? 1 : 0
+  count      = var.telegram_secret_arn != "" ? 1 : 0
   role       = aws_iam_role.telegram_lambda_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # SNS subscription for Telegram Lambda
 resource "aws_sns_topic_subscription" "backup_notifications_telegram" {
-  count     = var.telegram_bot_token != "" ? 1 : 0
+  count     = var.telegram_secret_arn != "" ? 1 : 0
   topic_arn = aws_sns_topic.backup_notifications.arn
   protocol  = "lambda"
   endpoint  = aws_lambda_function.telegram_notifier[0].arn
@@ -139,7 +135,7 @@ resource "aws_sns_topic_subscription" "backup_notifications_telegram" {
 
 # Lambda permission for SNS
 resource "aws_lambda_permission" "allow_sns_telegram" {
-  count         = var.telegram_bot_token != "" ? 1 : 0
+  count         = var.telegram_secret_arn != "" ? 1 : 0
   statement_id  = "AllowExecutionFromSNS"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.telegram_notifier[0].function_name

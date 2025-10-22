@@ -31,17 +31,11 @@ variable "slack_webhook_url" {
   sensitive   = true
 }
 
-variable "telegram_bot_token" {
-  description = "Telegram bot token for notifications (stored in secrets)"
+variable "telegram_secret_arn" {
+  description = "Secrets Manager ARN storing Telegram credentials"
   type        = string
   default     = ""
   sensitive   = true
-}
-
-variable "telegram_chat_id" {
-  description = "Telegram chat ID for notifications"
-  type        = string
-  default     = ""
 }
 
 variable "storage_lens_group" {

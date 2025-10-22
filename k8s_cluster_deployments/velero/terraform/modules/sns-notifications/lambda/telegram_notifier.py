@@ -1,15 +1,18 @@
 import json
 import urllib3
 import os
+import boto3
+
+_secrets_client = boto3.client("secretsmanager")
+_cached_credentials = None
 
 def lambda_handler(event, context):
     """
     AWS Lambda function to send SNS notifications to Telegram
     """
     
-    # Get environment variables
-    bot_token = os.environ['TELEGRAM_BOT_TOKEN']
-    chat_id = os.environ['TELEGRAM_CHAT_ID']
+    # Load credentials from Secrets Manager (cached for subsequent invocations)
+    bot_token, chat_id = get_telegram_credentials()
     
     # Parse SNS message
     message = json.loads(event['Records'][0]['Sns']['Message'])
@@ -81,3 +84,20 @@ def send_telegram_message(bot_token, chat_id, message):
     except Exception as e:
         print(f"Error sending Telegram message: {str(e)}")
         raise e
+
+
+def get_telegram_credentials():
+    """
+    Retrieve Telegram bot credentials from Secrets Manager, caching between invocations.
+    """
+    global _cached_credentials
+
+    if _cached_credentials:
+        return _cached_credentials
+
+    secret_arn = os.environ["TELEGRAM_SECRET_ARN"]
+    secret_value = _secrets_client.get_secret_value(SecretId=secret_arn)
+    secret = json.loads(secret_value["SecretString"])
+
+    _cached_credentials = (secret["TELEGRAM_TOKEN"], secret["TELEGRAM_CHAT_ID"])
+    return _cached_credentials
