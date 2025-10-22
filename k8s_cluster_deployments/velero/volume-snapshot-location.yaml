@@ -1,0 +1,15 @@
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: default
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: terraform
+spec:
+  provider: aws
+  config:
+    region: eu-central-1
+    # Enable cross-region snapshot support if needed
+    # availabilityZone: eu-central-1a

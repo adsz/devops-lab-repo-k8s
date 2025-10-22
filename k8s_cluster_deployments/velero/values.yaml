@@ -1,0 +1,173 @@
+# Velero Helm Chart Values for Enterprise Kubernetes Backup
+# AWS S3 backend configuration with enterprise-grade settings
+
+# Velero server configuration (using chart default version)
+image:
+  repository: velero/velero
+  pullPolicy: IfNotPresent
+
+# Resource requests and limits for enterprise workload
+resources:
+  requests:
+    cpu: 500m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# Node selector for dedicated backup nodes (optional)
+nodeSelector: {}
+
+# Tolerations for backup workload
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Service account configuration (will be created by Terraform IAM module)
+serviceAccount:
+  server:
+    create: true
+    name: velero
+    annotations:
+      eks.amazonaws.com/role-arn: "" # Will be populated by Terraform
+
+# RBAC configuration
+rbac:
+  create: true
+  clusterAdministrator: true
+
+# Credentials configuration for AWS
+credentials:
+  useSecret: true
+  name: cloud-credentials
+  # Secret contents provided at deploy time (install.sh reads cloud-credentials.conf or AWS_* env vars).
+
+# Configuration for backup storage location
+configuration:
+  # Cloud provider (AWS)
+  provider: aws
+  
+  # Backup storage location configuration
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: aws5-k8s-backup
+      config:
+        region: eu-central-1
+        s3ForcePathStyle: false
+        s3Url: ""
+        publicUrl: ""
+        serverSideEncryption: AES256
+        insecureSkipTLSVerify: false
+  
+  # Volume snapshot location configuration
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: eu-central-1
+
+  # Default backup TTL (30 days)
+  defaultBackupTTL: 720h
+
+  # Enable leader election for HA setup
+  leaderElection: true
+
+# Metrics configuration for Prometheus integration
+metrics:
+  enabled: true
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8085"
+      prometheus.io/path: "/metrics"
+
+# Enable CSI snapshot support
+snapshotsEnabled: true
+
+# Deploy node agent (formerly restic) for file-level backup
+deployNodeAgent: true
+nodeAgent:
+  podVolumePath: /var/lib/kubelet/pods
+  privileged: false
+  resources:
+    requests:
+      cpu: 200m
+      memory: 200Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Velero server init containers
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.8.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+# Cleanup configuration
+cleanUpCRDs: false
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+
+# Container security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Log configuration
+logLevel: info
+logFormat: text
+
+# Default volumes for backup (new naming convention)
+defaultVolumesToFsBackup: true
+
+# Backup deletion policy
+defaultBackupStorageLocation: default
+defaultVolumeSnapshotLocations: default
+
+# Schedule configuration (will be overridden by custom schedules)
+schedules: {}
+
+# Upgrade configuration
+upgradeCRDs: true
+
+# Extra environment variables
+extraEnvVars: {}
+
+# Extra volumes and volume mounts
+extraVolumes: []
+extraVolumeMounts: []
+
+# Pod annotations
+podAnnotations:
+  backup.velero.io/backup-volumes: ""
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+
+# Pod labels
+podLabels:
+  app.kubernetes.io/name: velero
+  app.kubernetes.io/component: backup
+  app.kubernetes.io/managed-by: helm
+
+# Service monitor for Prometheus Operator
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: monitoring

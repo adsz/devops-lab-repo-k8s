@@ -1,0 +1,151 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: terraform
+spec:
+  # Run daily at 2 AM UTC
+  schedule: "0 2 * * *"
+  template:
+    # Include all namespaces except system ones
+    includedNamespaces:
+    - "*"
+    excludedNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    
+    # Include all resources
+    includedResources:
+    - "*"
+    
+    # Backup persistent volumes
+    defaultVolumesToRestic: true
+    
+    # Retention period (30 days)
+    ttl: 720h0m0s
+    
+    # Storage location
+    storageLocation: default
+    volumeSnapshotLocations:
+    - default
+    
+    # Backup labels for organization
+    metadata:
+      labels:
+        backup-type: scheduled
+        retention: "30d"
+        
+    # Backup hooks for application consistency
+    hooks:
+      resources:
+      - name: database-backup-hook
+        includedNamespaces:
+        - "*"
+        includedResources:
+        - pods
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: database
+        pre:
+        - exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pg_dump -h localhost -U postgres mydb > /tmp/backup.sql"
+            onError: Continue
+            timeout: 5m
+        post:
+        - exec:
+            command:
+            - rm
+            - /tmp/backup.sql
+            onError: Continue
+            timeout: 1m
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-full-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: terraform
+spec:
+  # Run weekly on Sunday at 1 AM UTC
+  schedule: "0 1 * * 0"
+  template:
+    # Full cluster backup including system namespaces
+    includedNamespaces:
+    - "*"
+    
+    # Include all resources including CRDs
+    includedResources:
+    - "*"
+    
+    # Include cluster-scoped resources
+    includeClusterResources: true
+    
+    # Backup persistent volumes
+    defaultVolumesToRestic: true
+    
+    # Extended retention for weekly backups (90 days)
+    ttl: 2160h0m0s
+    
+    # Storage location
+    storageLocation: default
+    volumeSnapshotLocations:
+    - default
+    
+    # Backup labels
+    metadata:
+      labels:
+        backup-type: full-weekly
+        retention: "90d"
+
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: etcd-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: terraform
+spec:
+  # Run every 6 hours for ETCD snapshots
+  schedule: "0 */6 * * *"
+  template:
+    # Only backup etcd-related resources
+    includedNamespaces:
+    - kube-system
+    
+    # Focus on control plane components
+    includedResources:
+    - configmaps
+    - secrets
+    - serviceaccounts
+    
+    # Label selector for etcd components
+    labelSelector:
+      matchLabels:
+        component: etcd
+    
+    # Short retention for frequent snapshots (7 days)
+    ttl: 168h0m0s
+    
+    # Storage location
+    storageLocation: default
+    
+    # Backup labels
+    metadata:
+      labels:
+        backup-type: etcd-snapshot
+        retention: "7d"

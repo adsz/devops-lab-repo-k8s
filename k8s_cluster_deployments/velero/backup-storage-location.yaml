@@ -1,0 +1,21 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: terraform
+spec:
+  provider: aws
+  objectStorage:
+    bucket: aws5-k8s-backup
+    prefix: velero-backups
+  config:
+    region: eu-central-1
+    s3ForcePathStyle: "false"
+    serverSideEncryption: AES256
+    insecureSkipTLSVerify: "false"
+  default: true
+  validationFrequency: 24h0m0s
