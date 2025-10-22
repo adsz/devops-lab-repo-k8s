@@ -95,62 +95,12 @@ module "sns_notifications" {
 }
 
 # CloudWatch alarms for backup monitoring
-resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
-  alarm_name          = "${local.cluster_name}-backup-failures"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "BackupFailures"
-  namespace           = "Velero"
-  period              = "300"
-  statistic           = "Sum"
-  threshold           = "0"
-  alarm_description   = "This metric monitors Velero backup failures"
-  alarm_actions       = [module.sns_notifications.backup_alerts_topic_arn]
+module "cloudwatch_monitoring" {
+  source = "./modules/cloudwatch-monitoring"
 
-  dimensions = {
-    BackupStorageLocation = "default"
-  }
-
-  tags = local.common_tags
-}
-
-# CloudWatch dashboard for backup monitoring
-resource "aws_cloudwatch_dashboard" "backup_dashboard" {
-  dashboard_name = "${local.cluster_name}-backup-monitoring"
-
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        type   = "metric"
-        x      = 0
-        y      = 0
-        width  = 12
-        height = 6
-
-        properties = {
-          metrics = [
-            ["AWS/S3", "BucketSizeBytes", "BucketName", var.s3_bucket_name, "StorageType", "StandardStorage"],
-            [".", "NumberOfObjects", ".", ".", ".", "AllStorageTypes"]
-          ]
-          period = 86400
-          stat   = "Average"
-          region = var.aws_region
-          title  = "S3 Backup Bucket Metrics"
-        }
-      },
-      {
-        type   = "log"
-        x      = 0
-        y      = 6
-        width  = 24
-        height = 6
-
-        properties = {
-          query  = "SOURCE '/aws/lambda/${local.cluster_name}-telegram-notifier'\n| fields @timestamp, @message\n| sort @timestamp desc\n| limit 20"
-          region = var.aws_region
-          title  = "Backup Notifications Log"
-        }
-      }
-    ]
-  })
+  cluster_name            = local.cluster_name
+  s3_bucket_name          = var.s3_bucket_name
+  aws_region              = var.aws_region
+  backup_alerts_topic_arn = module.sns_notifications.backup_alerts_topic_arn
+  common_tags             = local.common_tags
 }
