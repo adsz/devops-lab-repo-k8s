@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CREDENTIALS_OVERRIDE="${1:-${VELERO_CREDENTIALS_FILE:-}}"
 DEFAULT_CREDENTIALS_REPO="${SCRIPT_DIR}/cloud-credentials.conf"
 DEFAULT_CREDENTIALS_HOME="${HOME}/.config/k8s-local/velero/cloud-credentials.conf"
+CREDENTIALS_SECRET_FILE="${SCRIPT_DIR}/cloud-credentials.secret.yaml"
 
 # Colors for output
 RED='\033[0;31m'
@@ -110,6 +111,13 @@ ensure_credentials_sources() {
         return 0
     fi
 
+    if [[ -f "${CREDENTIALS_SECRET_FILE}" ]]; then
+        log_info "Applying cloud-credentials secret from ${CREDENTIALS_SECRET_FILE}"
+        kubectl apply -f "${CREDENTIALS_SECRET_FILE}"
+        log_success "cloud-credentials secret applied from file"
+        return 0
+    fi
+
     local creds_file=""
     if [[ -n "${CREDENTIALS_OVERRIDE}" ]]; then
         creds_file="${CREDENTIALS_OVERRIDE}"
@@ -169,6 +177,7 @@ install_velero_helm() {
         vmware-tanzu/velero \
         --namespace="${VELERO_NAMESPACE}" \
         --values "${SCRIPT_DIR}/values.yaml" \
+        --reset-values \
         --wait \
         --timeout=10m
     

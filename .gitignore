@@ -10,6 +10,7 @@ howto.md
 
 # Local secret overrides (never commit)
 k8s_cluster_deployments/velero/cloud-credentials.conf
+k8s_cluster_deployments/velero/cloud-credentials.secret.yaml
 k8s_cluster_deployments/etcd-backup/aws-credentials.conf
 k8s_cluster_deployments/etcd-backup/aws-credentials.secret.yaml
 

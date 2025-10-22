@@ -41,13 +41,11 @@ rbac:
 credentials:
   useSecret: true
   name: cloud-credentials
-  # Secret contents provided at deploy time (install.sh reads cloud-credentials.conf or AWS_* env vars).
+  existingSecret: cloud-credentials
+  secretContents: {}
 
 # Configuration for backup storage location
 configuration:
-  # Cloud provider (AWS)
-  provider: aws
-  
   # Backup storage location configuration
   backupStorageLocation:
     - name: default

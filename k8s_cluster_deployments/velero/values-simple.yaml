@@ -28,7 +28,8 @@ rbac:
 credentials:
   useSecret: true
   name: cloud-credentials
-  # Secret contents are provisioned via cloud-credentials.conf (gitignored) and created during install.
+  existingSecret: cloud-credentials
+  secretContents: {}
 
 # Configuration for backup storage location
 configuration:
