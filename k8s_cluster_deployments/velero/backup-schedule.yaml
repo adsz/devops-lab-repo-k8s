@@ -23,8 +23,8 @@ spec:
     includedResources:
     - "*"
     
-    # Backup persistent volumes
-    defaultVolumesToRestic: true
+    # Backup persistent volumes using node-agent filesystem mode
+    defaultVolumesToFsBackup: true
     
     # Retention period (30 days)
     ttl: 720h0m0s
@@ -92,8 +92,8 @@ spec:
     # Include cluster-scoped resources
     includeClusterResources: true
     
-    # Backup persistent volumes
-    defaultVolumesToRestic: true
+    # Backup persistent volumes using node-agent filesystem mode
+    defaultVolumesToFsBackup: true
     
     # Extended retention for weekly backups (90 days)
     ttl: 2160h0m0s
