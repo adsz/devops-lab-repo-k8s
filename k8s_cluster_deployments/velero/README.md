@@ -51,7 +51,9 @@ terraform state rm module.iam_backup.kubernetes_service_account.velero
 
 before the next `terraform apply` to avoid Terraform attempting to delete them.
 
-Optional: to chart prefix-level metrics on the CloudWatch dashboard, configure S3 Storage Lens filters for the Velero (`velero/`) and etcd (`etcd-full-backup/`) prefixes, then set `velero_storage_lens_filter_id` / `etcd_storage_lens_filter_id` in `terraform.tfvars`. The dashboard will surface both total bucket usage and per-prefix size/object counts when those filter IDs are provided.
+Optional: if you maintain an S3 Storage Lens group that targets the `velero/` and `etcd-full-backup/` prefixes (for example `k8s-backups`), set the group name in `storage_lens_group` inside `terraform.tfvars`. The CloudWatch dashboard will then display both the bucket-wide metrics and prefix-specific size/object counts. Leave the value blank to omit the prefix widget.
+
+If you also stream backup notifications to CloudWatch Logs (e.g., via a Lambda notifier), configure the log group name in `notification_log_group`. When left empty the dashboard hides the log widget (preventing the "log group not found" error).
 
 ## Cleanup
 ```bash

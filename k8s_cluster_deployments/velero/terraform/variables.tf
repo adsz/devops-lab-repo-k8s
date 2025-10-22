@@ -44,14 +44,14 @@ variable "telegram_chat_id" {
   default     = ""
 }
 
-variable "velero_storage_lens_filter_id" {
-  description = "Optional S3 Storage Lens filter ID for Velero backups prefix"
+variable "storage_lens_group" {
+  description = "Optional Storage Lens group name covering Velero/etcd prefixes"
   type        = string
   default     = ""
 }
 
-variable "etcd_storage_lens_filter_id" {
-  description = "Optional S3 Storage Lens filter ID for etcd backups prefix"
+variable "notification_log_group" {
+  description = "Optional CloudWatch Logs group for Velero notification widget"
   type        = string
   default     = ""
 }

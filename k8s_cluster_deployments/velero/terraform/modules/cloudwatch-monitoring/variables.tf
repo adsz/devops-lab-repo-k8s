@@ -18,14 +18,14 @@ variable "backup_alerts_topic_arn" {
   type        = string
 }
 
-variable "velero_filter_id" {
-  description = "Optional CloudWatch S3 Storage Lens filter ID for Velero backups prefix"
+variable "storage_lens_group" {
+  description = "Optional S3 Storage Lens group name with Velero/etcd prefixes"
   type        = string
   default     = ""
 }
 
-variable "etcd_filter_id" {
-  description = "Optional CloudWatch S3 Storage Lens filter ID for etcd backups prefix"
+variable "notification_log_group" {
+  description = "Optional CloudWatch Logs group to surface recent backup notifications"
   type        = string
   default     = ""
 }

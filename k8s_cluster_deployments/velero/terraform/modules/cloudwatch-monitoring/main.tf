@@ -20,16 +20,27 @@ resource "aws_cloudwatch_metric_alarm" "backup_failure_alarm" {
 }
 
 locals {
-  prefix_metrics = concat(
-    var.velero_filter_id == "" ? [] : [
-      ["AWS/S3", "BucketSizeBytes", "BucketName", var.s3_bucket_name, "StorageType", "StandardStorage", "FilterId", var.velero_filter_id],
-      [".", "NumberOfObjects", "BucketName", var.s3_bucket_name, "StorageType", "AllStorageTypes", "FilterId", var.velero_filter_id]
-    ],
-    var.etcd_filter_id == "" ? [] : [
-      ["AWS/S3", "BucketSizeBytes", "BucketName", var.s3_bucket_name, "StorageType", "StandardStorage", "FilterId", var.etcd_filter_id],
-      [".", "NumberOfObjects", "BucketName", var.s3_bucket_name, "StorageType", "AllStorageTypes", "FilterId", var.etcd_filter_id]
-    ]
-  )
+  prefix_metrics = var.storage_lens_group == "" ? [] : [
+    ["AWS/S3", "BucketSizeBytes", "StorageLensGroup", var.storage_lens_group, "StorageType", "StandardStorage"],
+    ["AWS/S3", "NumberOfObjects", "StorageLensGroup", var.storage_lens_group, "StorageType", "AllStorageTypes"]
+  ]
+}
+
+locals {
+  log_widget = var.notification_log_group == "" ? [] : [
+    {
+      type   = "log"
+      x      = 0
+      y      = 6
+      width  = 24
+      height = 6
+      properties = {
+        query  = "SOURCE '${var.notification_log_group}'\n| fields @timestamp, @message\n| sort @timestamp desc\n| limit 20"
+        region = var.aws_region
+        title  = "Backup Notifications Log"
+      }
+    }
+  ]
 }
 
 resource "aws_cloudwatch_dashboard" "backup_dashboard" {
@@ -77,20 +88,7 @@ resource "aws_cloudwatch_dashboard" "backup_dashboard" {
           }
         }
       ],
-      [
-        {
-          type   = "log"
-          x      = 0
-          y      = 6
-          width  = 24
-          height = 6
-          properties = {
-            query = "SOURCE '/aws/lambda/${var.cluster_name}-telegram-notifier'\n| fields @timestamp, @message\n| sort @timestamp desc\n| limit 20"
-            region = var.aws_region
-            title  = "Backup Notifications Log"
-          }
-        }
-      ]
+      local.log_widget
     )
   })
 }
