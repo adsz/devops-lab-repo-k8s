@@ -104,5 +104,5 @@ module "cloudwatch_monitoring" {
   backup_alerts_topic_arn = module.sns_notifications.backup_alerts_topic_arn
   common_tags             = local.common_tags
   storage_lens_group      = var.storage_lens_group
-  notification_log_group  = var.notification_log_group
+  notification_log_group  = module.sns_notifications.telegram_lambda_log_group != null ? module.sns_notifications.telegram_lambda_log_group : ""
 }

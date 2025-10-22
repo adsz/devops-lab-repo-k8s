@@ -53,7 +53,7 @@ before the next `terraform apply` to avoid Terraform attempting to delete them.
 
 Optional: if you maintain an S3 Storage Lens group that targets the `velero/` and `etcd-full-backup/` prefixes (for example `k8s-backups`), set the group name in `storage_lens_group` inside `terraform.tfvars`. The CloudWatch dashboard will then display both the bucket-wide metrics and prefix-specific size/object counts. Leave the value blank to omit the prefix widget.
 
-If you also stream backup notifications to CloudWatch Logs (e.g., via a Lambda notifier), configure the log group name in `notification_log_group`. When left empty the dashboard hides the log widget (preventing the "log group not found" error).
+If you enable the Telegram notifier (set bot token/chat ID), Terraform now provisions the `/aws/lambda/<cluster>-telegram-notifier` log group automatically and the dashboard widget lights up. Without the notifier, the widget is hidden so you won't see any "log group not found" errors.
 
 ## Cleanup
 ```bash

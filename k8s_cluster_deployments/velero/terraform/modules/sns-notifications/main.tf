@@ -63,6 +63,7 @@ resource "aws_lambda_function" "telegram_notifier" {
   handler       = "lambda_function.lambda_handler"
   runtime       = "python3.9"
   timeout       = 30
+  depends_on    = [aws_cloudwatch_log_group.telegram_lambda]
 
   source_code_hash = data.archive_file.telegram_lambda_zip[0].output_base64sha256
 
@@ -72,6 +73,15 @@ resource "aws_lambda_function" "telegram_notifier" {
       TELEGRAM_CHAT_ID   = var.telegram_chat_id
     }
   }
+
+  tags = var.common_tags
+}
+
+# Dedicated log group for the Telegram notifier (ensures dashboard widget works even before first invocation)
+resource "aws_cloudwatch_log_group" "telegram_lambda" {
+  count             = var.telegram_bot_token != "" ? 1 : 0
+  name              = "/aws/lambda/${var.cluster_name}-telegram-notifier"
+  retention_in_days = 30
 
   tags = var.common_tags
 }

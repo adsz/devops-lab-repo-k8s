@@ -49,9 +49,3 @@ variable "storage_lens_group" {
   type        = string
   default     = ""
 }
-
-variable "notification_log_group" {
-  description = "Optional CloudWatch Logs group for Velero notification widget"
-  type        = string
-  default     = ""
-}

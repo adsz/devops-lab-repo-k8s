@@ -29,3 +29,8 @@ output "telegram_lambda_function_arn" {
   description = "ARN of the Telegram notification Lambda function"
   value       = var.telegram_bot_token != "" ? aws_lambda_function.telegram_notifier[0].arn : null
 }
+
+output "telegram_lambda_log_group" {
+  description = "CloudWatch log group name used by the Telegram notifier"
+  value       = var.telegram_bot_token != "" ? aws_cloudwatch_log_group.telegram_lambda[0].name : null
+}
