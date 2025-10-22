@@ -18,6 +18,18 @@ variable "backup_alerts_topic_arn" {
   type        = string
 }
 
+variable "velero_filter_id" {
+  description = "Optional CloudWatch S3 Storage Lens filter ID for Velero backups prefix"
+  type        = string
+  default     = ""
+}
+
+variable "etcd_filter_id" {
+  description = "Optional CloudWatch S3 Storage Lens filter ID for etcd backups prefix"
+  type        = string
+  default     = ""
+}
+
 variable "common_tags" {
   description = "Common tags to apply to CloudWatch resources"
   type        = map(string)

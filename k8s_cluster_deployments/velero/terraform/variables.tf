@@ -43,3 +43,15 @@ variable "telegram_chat_id" {
   type        = string
   default     = ""
 }
+
+variable "velero_storage_lens_filter_id" {
+  description = "Optional S3 Storage Lens filter ID for Velero backups prefix"
+  type        = string
+  default     = ""
+}
+
+variable "etcd_storage_lens_filter_id" {
+  description = "Optional S3 Storage Lens filter ID for etcd backups prefix"
+  type        = string
+  default     = ""
+}

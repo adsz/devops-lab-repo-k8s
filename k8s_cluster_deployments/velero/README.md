@@ -51,6 +51,8 @@ terraform state rm module.iam_backup.kubernetes_service_account.velero
 
 before the next `terraform apply` to avoid Terraform attempting to delete them.
 
+Optional: to chart prefix-level metrics on the CloudWatch dashboard, configure S3 Storage Lens filters for the Velero (`velero/`) and etcd (`etcd-full-backup/`) prefixes, then set `velero_storage_lens_filter_id` / `etcd_storage_lens_filter_id` in `terraform.tfvars`. The dashboard will surface both total bucket usage and per-prefix size/object counts when those filter IDs are provided.
+
 ## Cleanup
 ```bash
 helm uninstall velero -n velero

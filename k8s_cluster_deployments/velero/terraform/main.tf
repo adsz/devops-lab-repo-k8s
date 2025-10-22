@@ -103,4 +103,6 @@ module "cloudwatch_monitoring" {
   aws_region              = var.aws_region
   backup_alerts_topic_arn = module.sns_notifications.backup_alerts_topic_arn
   common_tags             = local.common_tags
+  velero_filter_id        = var.velero_storage_lens_filter_id
+  etcd_filter_id          = var.etcd_storage_lens_filter_id
 }
