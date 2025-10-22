@@ -31,6 +31,26 @@ This directory contains the manifests required to deploy Velero with an AWS S3 b
    velero backup get
    ```
 
+## AWS Infrastructure (Terraform)
+Terraform configuration lives in `terraform/`. It provisions the S3 bucket, IAM roles (including the IRSA role referenced in `values.yaml`), and SNS topics.
+
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
+
+Set `create_k8s_service_account = false` (already configured) so Terraform manages only AWS resources while Helm owns the Velero namespace and service account.
+If you previously applied an older version that created the namespace/service account, run:
+
+```bash
+terraform state rm module.iam_backup.kubernetes_namespace.velero
+terraform state rm module.iam_backup.kubernetes_service_account.velero
+```
+
+before the next `terraform apply` to avoid Terraform attempting to delete them.
+
 ## Cleanup
 ```bash
 helm uninstall velero -n velero

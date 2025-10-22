@@ -30,7 +30,7 @@ serviceAccount:
     create: true
     name: velero
     annotations:
-      eks.amazonaws.com/role-arn: "" # Will be populated by Terraform
+      eks.amazonaws.com/role-arn: "arn:aws:iam::112779685446:role/k8s-production-velero-backup-role"
 
 # RBAC configuration
 rbac:
