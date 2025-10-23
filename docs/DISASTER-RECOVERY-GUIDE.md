@@ -66,7 +66,7 @@ aws s3 ls s3://aws5-k8s-backup/velero-backups/ | tail -10
 aws s3 ls s3://aws5-k8s-backup/etcd-snapshots/ | tail -5
 
 # Step 2: Restore infrastructure with Terraform
-cd /repos/devops-lab-new/k8s-local/k8s_cluster_deployments/velero/terraform
+cd /repos/devops-lab-new/k8s-local/cluster_deployments/velero/terraform
 terraform init -upgrade
 terraform plan
 terraform apply -auto-approve
@@ -91,7 +91,7 @@ sudo chown -R etcd:etcd /var/lib/etcd
 sudo systemctl start etcd
 
 # Step 5: Reinstall Velero
-cd /repos/devops-lab-new/k8s-local/k8s_cluster_deployments/velero
+cd /repos/devops-lab-new/k8s-local/cluster_deployments/velero
 
 # Reapply the cloud-credentials secret (file contains sensitive data maintained locally)
 kubectl apply -f cloud-credentials.secret.yaml
@@ -488,7 +488,7 @@ kubectl describe serviceaccount velero -n velero
 kubectl get clusterrolebinding | grep velero
 
 # Fix permissions if needed – rerun the Helm release to recreate RBAC
-cd /repos/devops-lab-new/k8s-local/k8s_cluster_deployments/velero
+cd /repos/devops-lab-new/k8s-local/cluster_deployments/velero
 helm upgrade --install velero vmware-tanzu/velero \
   -n velero --create-namespace \
   -f values.yaml \
