@@ -152,7 +152,7 @@
           - Worker Nodes: {{ groups['k8s_workers'] | join(', ') }}
 
           Access Information:
-          - SSH: ssh ansible@192.168.0.180 -i /root/.ssh/id_rsa
+          - SSH: ssh ansible@192.168.0.180 -i /root/.ssh/ansible-dev-ol01-ed25519
           - kubectl: export KUBECONFIG=/home/ansible/.kube/config
           - HAProxy Stats: https://lb.devops-lab.cloud (auto-login)
           - kubectl API: https://k8s-api.devops-lab.cloud:6443
