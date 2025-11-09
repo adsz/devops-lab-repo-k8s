@@ -23,9 +23,9 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Wait for load balancer VIP to be ready
+    - name: Wait for load balancer VIP to be ready (HAProxy VIP on ol01/pi03)
       wait_for:
-        host: 192.168.0.200
+        host: k8s-api.devops-lab.cloud
         port: 6443
         timeout: 120
         msg: "Load balancer VIP not ready"
@@ -142,31 +142,35 @@
           ====================================================
           🎉 Kubernetes HA Cluster Deployment Complete! 🎉
           ====================================================
-          
+
           Cluster Components:
-          - Load Balancer VIP: 192.168.0.200:6443
+          - Load Balancer: k8s-api.devops-lab.cloud:6443 (HAProxy HA cluster)
+            - VIP: 192.168.0.150
+            - MASTER: ol01 (192.168.0.100)
+            - BACKUP: pi03 (192.168.0.106)
           - Master Nodes: {{ groups['k8s_masters'] | join(', ') }}
           - Worker Nodes: {{ groups['k8s_workers'] | join(', ') }}
-          
+
           Access Information:
           - SSH: ssh ansible@192.168.0.180 -i /root/.ssh/id_rsa
           - kubectl: export KUBECONFIG=/home/ansible/.kube/config
-          - HAProxy Stats: http://192.168.0.175:8404/stats (admin/admin)
-          
+          - HAProxy Stats: https://lb.devops-lab.cloud (auto-login)
+          - kubectl API: https://k8s-api.devops-lab.cloud:6443
+
           Quick Commands:
           - kubectl get nodes
           - kubectl get pods -n kube-system
           - kubectl get svc -A
-          
+
           ====================================================
 
 - name: Final connectivity test
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Test load balancer VIP connectivity
+    - name: Test load balancer VIP connectivity (HAProxy VIP)
       wait_for:
-        host: 192.168.0.200
+        host: k8s-api.devops-lab.cloud
         port: 6443
         timeout: 30
       register: vip_test
@@ -175,7 +179,7 @@
     - name: Display VIP test result
       debug:
         msg: |
-          Load Balancer VIP Test: {{ 'PASSED' if vip_test is succeeded else 'FAILED' }}
+          Load Balancer Test (k8s-api.devops-lab.cloud:6443 → 192.168.0.150): {{ 'PASSED' if vip_test is succeeded else 'FAILED' }}
           {% if vip_test is failed %}
-          Note: VIP might not be ready yet. Check HAProxy and Keepalived status.
+          Note: VIP might not be ready yet. Check HAProxy and Keepalived status on ol01/pi03.
           {% endif %}

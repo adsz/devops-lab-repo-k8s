@@ -29,10 +29,11 @@ apiServer:
   timeoutForControlPlane: 4m0s
   certSANs:
     - "127.0.0.1"
-    - "{{ control_plane_endpoint.split(':')[0] }}"
+    - "{{ control_plane_endpoint.split(':')[0] }}"  # k8s-api.devops-lab.cloud (DNS)
+    - "{{ haproxy_vip }}"  # 192.168.0.150 (HAProxy VIP IP for fallback)
 {% for host in groups['k8s_masters'] %}
-    - "{{ hostvars[host]['ansible_host'] }}"
-    - "{{ host }}"
+    - "{{ hostvars[host]['ansible_host'] }}"  # CP node IPs
+    - "{{ host }}"  # CP node hostnames
 {% endfor %}
 
 ---

@@ -7,13 +7,15 @@ nameservers:
   - "8.8.8.8"
   - "1.1.1.1"
 nodes:
-  k8s-lb:
-    private_ip: "10.0.0.5"
-    public_ip: "192.168.0.175"
-    ssh_port: 2220
-    memory: 2048
-    cpus: 1
-    role: "loadbalancer"
+  # DEPRECATED: Dedicated k8s-lb VM replaced by centralized HAProxy HA cluster
+  # Load balancing: k8s-api.devops-lab.cloud → 192.168.0.150 (ol01 MASTER, pi03 BACKUP)
+  # k8s-lb:
+  #   private_ip: "10.0.0.5"
+  #   public_ip: "192.168.0.175"
+  #   ssh_port: 2220
+  #   memory: 2048
+  #   cpus: 1
+  #   role: "loadbalancer"
   k8s-master-1:
     private_ip: "10.0.0.10"
     public_ip: "192.168.0.180"

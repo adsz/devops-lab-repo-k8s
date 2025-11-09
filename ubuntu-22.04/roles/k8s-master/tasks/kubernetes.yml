@@ -53,12 +53,14 @@
   loop: "{{ groups['k8s_masters'] }}"
   tags: kubernetes
 
-- name: Add control plane endpoint to /etc/hosts
-  lineinfile:
-    path: /etc/hosts
-    line: "{{ control_plane_endpoint.split(':')[0] }} k8s-api.local"
-    state: present
-  tags: kubernetes
+# DEPRECATED: Using CloudFlare DNS instead of /etc/hosts (Big Tech style)
+# DNS: k8s-api.devops-lab.cloud → 192.168.0.150 (CloudFlare A record)
+# - name: Add control plane endpoint to /etc/hosts
+#   lineinfile:
+#     path: /etc/hosts
+#     line: "{{ control_plane_endpoint.split(':')[0] }} k8s-api.local"
+#     state: present
+#   tags: kubernetes
 
 - name: Install dependencies
   apt:
