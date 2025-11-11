@@ -24,11 +24,14 @@ vrrp_instance VI_1 {
         auth_type PASS
         auth_pass k8s_ha_pass
     }
-    # DEPRECATED: Old dedicated k8s-lb VM VIP replaced by centralized HAProxy HA cluster
-    # New VIP: 192.168.0.150 (managed on ol01 MASTER, pi03 BACKUP)
+    # DEPRECATED: This template is for old dedicated k8s-lb VM (192.168.0.175)
+    # VM decommissioned 2025-11-12 - replaced by centralized HAProxy HA cluster
+    # Current VIP: 192.168.0.150 (managed on ol01 MASTER, pi03 BACKUP via /repos/devops-lab-new/svc-load-balancer/)
     # DNS: k8s-api.devops-lab.cloud → 192.168.0.150
+    # Note: This file kept for reference only - no longer deployed
     virtual_ipaddress {
-        192.168.0.200/24  # OLD VIP - kept for reference only
+        # 192.168.0.200/24  # OLD VIP never used - incorrect configuration
+        # 192.168.0.175/24  # OLD dedicated k8s-lb VM IP - VM decommissioned
     }
     track_script {
         chk_haproxy

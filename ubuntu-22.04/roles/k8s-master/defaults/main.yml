@@ -3,10 +3,13 @@ kubernetes_version: "1.29.15-1.1"
 kubernetes_semver: "1.29.15"
 kubernetes_repo_version: "1.29"
 pod_network_cidr: "10.244.0.0/16"
-# Control plane endpoint uses DNS name for HAProxy VIP (ol01 MASTER, pi03 BACKUP)
-# DNS: k8s-api.devops-lab.cloud → 192.168.0.150 (Keepalived VIP)
-# Previously: 192.168.0.200 (old dedicated k8s-lb VM - deprecated)
-control_plane_endpoint: "k8s-api.devops-lab.cloud:6443"
+# Control plane endpoint configuration
+# Current production: Direct connection to master (192.168.0.180:6443)
+# HAProxy VIP available but has timeout issues: 192.168.0.150:6443 (ol01 MASTER, pi03 BACKUP)
+# DNS: k8s-api.devops-lab.cloud → 192.168.0.150 (for future HA setup after timeout fix)
+# Historical: 192.168.0.200 (never existed), 192.168.0.175 (old k8s-lb VM decommissioned 2025-11-12)
+control_plane_endpoint: "192.168.0.180:6443"  # Direct master connection (timeout workaround)
+# control_plane_endpoint: "k8s-api.devops-lab.cloud:6443"  # Future HA setup (after HAProxy timeout fix)
 haproxy_vip: "192.168.0.150"
 containerd_sandbox_image: "registry.k8s.io/pause:3.9"
 calico_version: "v3.27.3"
