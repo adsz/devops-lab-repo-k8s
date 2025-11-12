@@ -12,10 +12,10 @@ howto.txt
 howto.md
 
 # Local secret overrides (never commit)
-k8s_cluster_deployments/velero/cloud-credentials.conf
-k8s_cluster_deployments/velero/cloud-credentials.secret.yaml
-k8s_cluster_deployments/etcd-backup/aws-credentials.conf
-k8s_cluster_deployments/etcd-backup/aws-credentials.secret.yaml
+cluster_deployments/velero/cloud-credentials.conf
+cluster_deployments/velero/cloud-credentials.secret.yaml
+cluster_deployments/etcd-backup/aws-credentials.conf
+cluster_deployments/etcd-backup/aws-credentials.secret.yaml
 
 # AI helper docs (handled locally only)
 AGENTS.md
@@ -134,4 +134,4 @@ package-lock.json
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
