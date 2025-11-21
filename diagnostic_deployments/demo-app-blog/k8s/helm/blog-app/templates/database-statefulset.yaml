@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.namePrefix }}blog-db
+  namespace: {{ .Values.namePrefix }}demo-blog
+spec:
+  serviceName: {{ .Values.namePrefix }}blog-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.namePrefix }}blog-db
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.namePrefix }}blog-db
+        deployment-method: helm
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        envFrom:
+        - secretRef:
+            name: {{ .Values.namePrefix }}blog-db-secret
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+          subPath: postgres
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: {{ .Values.database.storage }}

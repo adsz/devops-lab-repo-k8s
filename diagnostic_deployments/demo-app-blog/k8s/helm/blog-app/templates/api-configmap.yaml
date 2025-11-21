@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.namePrefix }}blog-api-config
+  namespace: {{ .Values.namePrefix }}demo-blog
+data:
+  REDIS_HOST: {{ .Values.namePrefix }}blog-cache
+  REDIS_PORT: "6379"

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.namePrefix }}blog-frontend
+  namespace: {{ .Values.namePrefix }}demo-blog
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.namePrefix }}blog-frontend
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.namePrefix }}blog-frontend
+        deployment-method: helm
+    spec:
+      containers:
+      - name: nginx
+        image: {{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          sed -i 's|Demo Application for K8s Diagnostic Tools|Demo Application for K8s Diagnostic Tools<br>Deployed with Helm Chart Method|g' /usr/share/nginx/html/index.html
+          exec nginx -g 'daemon off;'
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"

@@ -1,0 +1,26 @@
+namePrefix: h-
+
+images:
+  frontend:
+    repository: harbor.devops-lab.cloud/k8s-diagnostic-demos/blog-frontend
+    tag: "1.0"
+  api:
+    repository: harbor.devops-lab.cloud/k8s-diagnostic-demos/blog-api
+    tag: "1.0"
+
+frontend:
+  replicas: 2
+  nodePort: 30082
+  
+api:
+  replicas: 2
+  nodePort: 30052
+
+database:
+  name: blogdb
+  user: blog
+  password: blogpass
+  storage: 1Gi
+
+cache:
+  enabled: true

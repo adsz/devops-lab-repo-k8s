@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.namePrefix }}blog-db
+  namespace: {{ .Values.namePrefix }}demo-blog
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: {{ .Values.namePrefix }}blog-db
+  clusterIP: None
