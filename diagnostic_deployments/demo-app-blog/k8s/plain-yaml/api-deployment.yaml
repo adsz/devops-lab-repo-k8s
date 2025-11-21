@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog-api
+  namespace: demo-blog
+  labels:
+    app: blog-api
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: blog-api
+  template:
+    metadata:
+      labels:
+        app: blog-api
+        component: api
+    spec:
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z blog-db 5432; do
+            echo "Waiting for database..."
+            sleep 2
+          done
+          echo "Database is ready"
+      containers:
+      - name: api
+        image: harbor.devops-lab.cloud/k8s-diagnostic-demos/blog-api:1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: blog-api-config
+        - secretRef:
+            name: blog-db-secret
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
