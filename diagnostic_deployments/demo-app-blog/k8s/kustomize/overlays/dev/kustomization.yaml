@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base
+
+commonLabels:
+  environment: dev
+
+patches:
+- target:
+    kind: ConfigMap
+    name: k-blog-api-config
+  patch: |-
+    - op: replace
+      path: /data/REDIS_HOST
+      value: k-blog-cache
+- target:
+    kind: Secret
+    name: k-blog-db-secret
+  patch: |-
+    - op: replace
+      path: /stringData/DB_HOST
+      value: k-blog-db
