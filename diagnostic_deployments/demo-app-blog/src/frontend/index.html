@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Blog - Demo App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 Simple Blog</h1>
+            <p class="subtitle">Demo Application for K8s Diagnostic Tools</p>
+        </header>
+
+        <section class="stats">
+            <div class="stat-box">
+                <h3 id="totalPosts">0</h3>
+                <p>Posts</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalComments">0</h3>
+                <p>Comments</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalViews">0</h3>
+                <p>Views</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="apiStatus">Checking...</h3>
+                <p>API Status</p>
+            </div>
+        </section>
+
+        <section class="create-post">
+            <h2>Create New Post</h2>
+            <form id="postForm">
+                <input type="text" id="postTitle" placeholder="Post Title" required>
+                <input type="text" id="postAuthor" placeholder="Your Name" required>
+                <textarea id="postContent" placeholder="Post Content" rows="4" required></textarea>
+                <button type="submit">Create Post</button>
+            </form>
+        </section>
+
+        <section class="posts">
+            <h2>Recent Posts</h2>
+            <div id="postsList">
+                <p>Loading posts...</p>
+            </div>
+        </section>
+
+        <footer>
+            <p>Blog App v1.0 | <a href="#" id="refreshBtn">Refresh</a> | <a href="#" id="clearCache">Clear Cache</a></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
