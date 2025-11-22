@@ -12,7 +12,7 @@ spec:
   project: default
 
   source:
-    repoURL: git@github.com:adsz/devops-lab-repo-k8s.git
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
     targetRevision: WIP
     path: diagnostic_deployments/demo-app-blog/k8s/kustomize/overlays/dev
 
