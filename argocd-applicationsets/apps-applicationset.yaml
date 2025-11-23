@@ -15,8 +15,6 @@ spec:
       revision: WIP
       directories:
       - path: diagnostic_deployments/*
-        exclude: diagnostic_deployments/*.sh  # Wykluczenie skryptów
-        exclude: diagnostic_deployments/*.md  # Wykluczenie dokumentacji
 
   template:
     metadata:

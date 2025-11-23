@@ -15,7 +15,8 @@ spec:
       revision: WIP
       directories:
       - path: cluster_deployments/*
-        exclude: cluster_deployments/argocd  # Wykluczenie ArgoCD (bootstrap problem)
+      - path: cluster_deployments/argocd
+        exclude: true  # Wykluczenie ArgoCD (bootstrap problem)
 
   template:
     metadata:
