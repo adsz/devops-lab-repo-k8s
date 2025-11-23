@@ -1,10 +1,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: diagnostic-applications
+  name: demo-app-blog-methods
   namespace: argocd
   labels:
-    category: applications
+    category: demo-app
+    app: blog
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -14,16 +15,15 @@ spec:
       repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
       revision: WIP
       directories:
-      - path: diagnostic_deployments/*
-      - path: diagnostic_deployments/demo-app-blog
-        exclude: true  # Managed by dedicated ApplicationSet
+      - path: diagnostic_deployments/demo-app-blog/k8s/*
 
   template:
     metadata:
-      name: 'app-{{.path.basename}}'
+      name: 'blog-{{.path.basename}}'  # blog-plain-yaml, blog-kustomize, blog-helm
       labels:
-        category: application
-        app: '{{.path.basename}}'
+        category: demo-app
+        app: blog
+        method: '{{.path.basename}}'
       annotations:
         argocd.argoproj.io/manifest-generate-paths: .
     spec:
@@ -36,16 +36,16 @@ spec:
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{.path.basename}}'  # Każda app w swoim namespace
+        # Każda metoda w swoim namespace: plain-yaml, kustomize-dev, helm
+        namespace: '{{.path.basename}}'
 
       syncPolicy:
         automated:
-          prune: true       # Agresywnie zarządzaj aplikacjami
-          selfHeal: true    # Auto-sync zmian z git
+          prune: true
+          selfHeal: true
         syncOptions:
         - CreateNamespace=true
         - PruneLast=true
-        - ApplyOutOfSyncOnly=true
         retry:
           limit: 3
           backoff:
@@ -53,5 +53,5 @@ spec:
             factor: 2
             maxDuration: 1m
 
-      # Dla demo apps możemy być bardziej elastyczni
+      # Demo app - możemy być agresywni z auto-sync
       revisionHistoryLimit: 5
