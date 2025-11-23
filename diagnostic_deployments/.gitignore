@@ -1,0 +1,21 @@
+# Helm
+*.tgz
+charts/
+Chart.lock
+
+# Kustomize
+kustomization-*.yaml
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
