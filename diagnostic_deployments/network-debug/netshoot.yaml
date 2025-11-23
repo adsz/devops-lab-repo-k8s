@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot
+  namespace: diagnostic-net
+  labels:
+    app: netshoot
+    app.kubernetes.io/category: diagnostic
+    app.kubernetes.io/component: network-debug
+spec:
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot:latest
+    command: ["sh", "-c", "sleep 3600"]
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "NET_RAW"]
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  restartPolicy: Always

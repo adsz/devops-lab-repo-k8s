@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: alpine
+  namespace: diagnostic-net
+  labels:
+    app: alpine
+    app.kubernetes.io/category: diagnostic
+    app.kubernetes.io/component: network-debug
+spec:
+  containers:
+  - name: alpine
+    image: alpine:latest
+    command: ["sh", "-c", "sleep 3600"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "50m"
+      limits:
+        memory: "64Mi"
+        cpu: "100m"
+  restartPolicy: Always
