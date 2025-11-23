@@ -19,6 +19,8 @@ spec:
         exclude: true  # Managed by dedicated ApplicationSet
       - path: diagnostic_deployments/demo-app-sockshop
         exclude: true  # Disabled
+      - path: diagnostic_deployments/demo-app-microservices
+        exclude: true  # Disabled
 
   template:
     metadata:
