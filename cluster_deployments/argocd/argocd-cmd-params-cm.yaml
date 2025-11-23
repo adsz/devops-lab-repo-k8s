@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # Enable application in any namespace
+  application.namespaces: "*"
+
+  # Increase timeout for larger repos
+  server.repo.server.timeout.seconds: "180"
+
+  # Controller settings
+  controller.status.processors: "20"
+  controller.operation.processors: "10"
+  controller.self.heal.timeout.seconds: "5"
+
+  # Repository server settings
+  reposerver.parallelism.limit: "10"

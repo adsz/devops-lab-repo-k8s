@@ -1,0 +1,70 @@
+# Prometheus Adapter Values
+# Replaces Metrics Server by exposing Prometheus metrics via Kubernetes Metrics API
+
+# Prometheus connection
+prometheus:
+  url: http://prometheus-prometheus.monitoring.svc
+  port: 9090
+
+# Single replica (sufficient for small cluster)
+replicas: 1
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Enable default resource metrics (CPU, Memory)
+rules:
+  default: true
+
+  # Resource metrics configuration
+  resource:
+    cpu:
+      containerQuery: |
+        sum(rate(container_cpu_usage_seconds_total{<<.LabelMatchers>>,container!="",pod!=""}[3m])) by (<<.GroupBy>>)
+      nodeQuery: |
+        sum(rate(container_cpu_usage_seconds_total{<<.LabelMatchers>>,id='/'}[3m])) by (<<.GroupBy>>)
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          node:
+            resource: node
+          pod:
+            resource: pod
+      containerLabel: container
+    memory:
+      containerQuery: |
+        sum(container_memory_working_set_bytes{<<.LabelMatchers>>,container!="",pod!=""}) by (<<.GroupBy>>)
+      nodeQuery: |
+        sum(container_memory_working_set_bytes{<<.LabelMatchers>>,id='/'}) by (<<.GroupBy>>)
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          node:
+            resource: node
+          pod:
+            resource: pod
+      containerLabel: container
+    window: 3m
+
+# Schedule on control-plane node
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+# Tolerate control-plane taints
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Pod annotations for Prometheus scraping
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "6443"

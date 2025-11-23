@@ -1,0 +1,32 @@
+global:
+  imagePullPolicy: IfNotPresent
+
+service:
+  ui:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  host: longhorn.local
+  tls: false
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: "2"
+  defaultDataLocality: best-effort
+  volumeBindingMode: Immediate
+  reclaimPolicy: Delete
+
+defaultSettings:
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: "2"
+  defaultDataLocality: best-effort
+  storageOverProvisioningPercentage: "200"
+  storageMinimalAvailablePercentage: "15"
+  replicaAutoBalancing: best-effort
+  createDefaultDiskLabeledNodes: false
+  defaultLonghornStaticStorageClass: longhorn
+  allowCollectingLonghornUsageMetrics: false

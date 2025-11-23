@@ -18,7 +18,7 @@ WARNING="⚠️"
 INFO="ℹ️"
 ROCKET="🚀"
 
-VAGRANT_DIR="/repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/vagrant"
+VAGRANT_DIR="/repos/devops-lab-new/k8s-local/ubuntu-22.04/vagrant"
 WAIT_LB=30
 WAIT_CP=120
 WAIT_WN=60
@@ -78,13 +78,13 @@ wait_for_ssh() {
 # Get list of VM statuses
 echo -e "${BLUE}${INFO} Checking cluster VM status...${NC}\n"
 
-LB_STATUS=$(check_vm_status "k8s-lb")
+# LB_STATUS=$(check_vm_status "k8s-lb")  # LB disabled - using direct CP connection
 CP_STATUS=$(check_vm_status "k8s-master-1")
 WN1_STATUS=$(check_vm_status "k8s-worker-1")
 WN2_STATUS=$(check_vm_status "k8s-worker-2")
 
 echo -e "${YELLOW}Current VM Status:${NC}"
-echo -e "  k8s-lb (Load Balancer):  ${LB_STATUS}"
+# echo -e "  k8s-lb (Load Balancer):  ${LB_STATUS}"  # LB disabled
 echo -e "  k8s-master-1 (CP):       ${CP_STATUS}"
 echo -e "  k8s-worker-1 (WN1):      ${WN1_STATUS}"
 echo -e "  k8s-worker-2 (WN2):      ${WN2_STATUS}"
@@ -95,7 +95,7 @@ RUNNING_WORKERS=0
 [[ "$WN1_STATUS" == "running" ]] && ((RUNNING_WORKERS++))
 [[ "$WN2_STATUS" == "running" ]] && ((RUNNING_WORKERS++))
 
-if [[ "$LB_STATUS" == "running" && "$CP_STATUS" == "running" && "$RUNNING_WORKERS" -gt 0 ]]; then
+if [[ "$CP_STATUS" == "running" && "$RUNNING_WORKERS" -eq 2 ]]; then
     echo -e "${GREEN}${CHECK} Cluster is already running!${NC}"
     echo -e "${INFO} Running cluster health check...${NC}\n"
 
@@ -111,27 +111,27 @@ if [[ "$LB_STATUS" == "running" && "$CP_STATUS" == "running" && "$RUNNING_WORKER
     exit 0
 fi
 
-echo -e "${BLUE}${ROCKET} Starting Kubernetes cluster...${NC}\n"
+echo -e "${BLUE}${ROCKET} Starting Kubernetes cluster (CP + Workers only)...${NC}\n"
 
-# Step 1: Start Load Balancer
-echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}Step 1/3: Starting Load Balancer${NC}"
-echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+# Step 1: Start Load Balancer - DISABLED (using direct CP connection)
+# echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+# echo -e "${BLUE}Step 1/3: Starting Load Balancer${NC}"
+# echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
+#
+# if [[ "$LB_STATUS" == "stopped" ]]; then
+#     echo -e "${YELLOW}${INFO} Starting k8s-lb...${NC}"
+#     vboxmanage startvm k8s-lb --type headless
+#     echo -e "${GREEN}${CHECK} k8s-lb VM started${NC}\n"
+#     wait_for_ssh 192.168.0.175 60
+#     echo -e "${INFO} Waiting additional time for HAProxy to initialize...${NC}"
+#     sleep 10
+# else
+#     echo -e "${GREEN}${CHECK} k8s-lb already running${NC}\n"
+# fi
 
-if [[ "$LB_STATUS" == "stopped" ]]; then
-    echo -e "${YELLOW}${INFO} Starting k8s-lb...${NC}"
-    vboxmanage startvm k8s-lb --type headless
-    echo -e "${GREEN}${CHECK} k8s-lb VM started${NC}\n"
-    wait_for_ssh 192.168.0.175 60
-    echo -e "${INFO} Waiting additional time for HAProxy to initialize...${NC}"
-    sleep 10
-else
-    echo -e "${GREEN}${CHECK} k8s-lb already running${NC}\n"
-fi
-
-# Step 2: Start Control Plane (Master)
+# Step 1: Start Control Plane (Master)
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}Step 2/3: Starting Control Plane${NC}"
+echo -e "${BLUE}Step 1/2: Starting Control Plane${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 
 if [[ "$CP_STATUS" == "stopped" ]]; then
@@ -145,9 +145,9 @@ else
     echo -e "${GREEN}${CHECK} k8s-master-1 already running${NC}\n"
 fi
 
-# Step 3: Start Worker Nodes
+# Step 2: Start Worker Nodes
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}Step 3/3: Starting Worker Nodes${NC}"
+echo -e "${BLUE}Step 2/2: Starting Worker Nodes${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 
 WORKERS_STARTED=0

@@ -1,0 +1,85 @@
+# Kubeshark Helm Chart Values
+# Enterprise configuration for network observability
+
+# Tap configuration
+tap:
+  # Namespaces to monitor (empty = all namespaces)
+  namespaces: []
+
+  # Resource limits for workers
+  resources:
+    worker:
+      limits:
+        cpu: 750m
+        memory: 1Gi
+      requests:
+        cpu: 50m
+        memory: 50Mi
+
+    hub:
+      limits:
+        cpu: 750m
+        memory: 1Gi
+      requests:
+        cpu: 50m
+        memory: 50Mi
+
+# Frontend configuration
+frontend:
+  service:
+    type: ClusterIP
+    port: 80
+
+# Storage configuration for traffic captures
+storage:
+  # Enable persistent storage
+  enabled: true
+  # Storage class (use default or specify)
+  storageClass: ""
+  # Storage size
+  size: 10Gi
+
+# Service account
+serviceAccount:
+  create: true
+  name: kubeshark
+
+# RBAC
+rbac:
+  create: true
+
+# Ingress configuration for external access
+ingress:
+  enabled: true
+  className: nginx
+  host: kubeshark.local
+  path: /
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  tls: []
+  # Uncomment for TLS/HTTPS
+  # tls:
+  #   - secretName: kubeshark-tls
+  #     hosts:
+  #       - kubeshark.devops-lab.cloud
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: false
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    add:
+      - NET_RAW
+      - NET_ADMIN
+  # privileged: true
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

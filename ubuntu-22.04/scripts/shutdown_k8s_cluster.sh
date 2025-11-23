@@ -17,7 +17,7 @@ CROSS="❌"
 WARNING="⚠️"
 INFO="ℹ️"
 
-VAGRANT_DIR="/repos/devops-lab-new/devops-lab-repo-k8s/ubuntu-22.04/vagrant"
+VAGRANT_DIR="/repos/devops-lab-new/k8s-local/ubuntu-22.04/vagrant"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     Kubernetes Cluster Safe Shutdown Script          ║${NC}"
