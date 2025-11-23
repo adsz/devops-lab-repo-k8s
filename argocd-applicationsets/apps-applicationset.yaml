@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: diagnostic-applications
+  namespace: argocd
+  labels:
+    category: applications
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+  - git:
+      repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+      revision: WIP
+      directories:
+      - path: diagnostic_deployments/*
+        exclude: diagnostic_deployments/*.sh  # Wykluczenie skryptów
+        exclude: diagnostic_deployments/*.md  # Wykluczenie dokumentacji
+
+  template:
+    metadata:
+      name: 'app-{{.path.basename}}'
+      labels:
+        category: application
+        app: '{{.path.basename}}'
+      annotations:
+        argocd.argoproj.io/manifest-generate-paths: .
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+        targetRevision: WIP
+        path: '{{.path.path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.path.basename}}'  # Każda app w swoim namespace
+
+      syncPolicy:
+        automated:
+          prune: true       # Agresywnie zarządzaj aplikacjami
+          selfHeal: true    # Auto-sync zmian z git
+        syncOptions:
+        - CreateNamespace=true
+        - PruneLast=true
+        - ApplyOutOfSyncOnly=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 1m
+
+      # Dla demo apps możemy być bardziej elastyczni
+      revisionHistoryLimit: 5

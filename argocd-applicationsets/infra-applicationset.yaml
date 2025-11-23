@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-infrastructure
+  namespace: argocd
+  labels:
+    category: infrastructure
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+  - git:
+      repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+      revision: WIP
+      directories:
+      - path: cluster_deployments/*
+        exclude: cluster_deployments/argocd  # Wykluczenie ArgoCD (bootstrap problem)
+
+  template:
+    metadata:
+      name: 'infra-{{.path.basename}}'
+      labels:
+        category: infrastructure
+        component: '{{.path.basename}}'
+      annotations:
+        argocd.argoproj.io/manifest-generate-paths: .
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+        targetRevision: WIP
+        path: '{{.path.path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.path.basename}}'  # Każdy komponent w swoim namespace
+
+      syncPolicy:
+        automated:
+          prune: false      # Ostrożnie z infrastrukturą - ręczny prune
+          selfHeal: true    # Auto-naprawiaj drifty
+        syncOptions:
+        - CreateNamespace=true
+        - PruneLast=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+      ignoreDifferences:
+      - group: apps
+        kind: Deployment
+        jsonPointers:
+        - /spec/replicas  # Ignoruj różnice w replikach (dla HPA)
