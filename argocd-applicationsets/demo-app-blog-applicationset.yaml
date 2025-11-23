@@ -16,6 +16,8 @@ spec:
       revision: WIP
       directories:
       - path: diagnostic_deployments/demo-app-blog/k8s/*
+      - path: diagnostic_deployments/demo-app-blog/k8s/helm
+        exclude: true
 
   template:
     metadata:
