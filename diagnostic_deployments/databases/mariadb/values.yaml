@@ -1,0 +1,31 @@
+replicaCount: 1
+
+image:
+  repository: mariadb
+  tag: "11"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 3306
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+persistence:
+  enabled: false
+  size: 5Gi
+  storageClass: ""
+
+mariadb:
+  database: testdb
+  user: mariadb
+  password: mariadb
+  rootPassword: root
+
+namespace: diagnostic-db

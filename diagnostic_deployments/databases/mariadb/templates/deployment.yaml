@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mariadb-diagnostic.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: mariadb
+    app.kubernetes.io/name: mariadb
+    app.kubernetes.io/category: diagnostic
+    app.kubernetes.io/component: database
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+      - name: mariadb
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 3306
+          name: mysql
+        env:
+        - name: MARIADB_DATABASE
+          value: {{ .Values.mariadb.database | quote }}
+        - name: MARIADB_USER
+          value: {{ .Values.mariadb.user | quote }}
+        - name: MARIADB_PASSWORD
+          value: {{ .Values.mariadb.password | quote }}
+        - name: MARIADB_ROOT_PASSWORD
+          value: {{ .Values.mariadb.rootPassword | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- if .Values.persistence.enabled }}
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+        {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "mariadb-diagnostic.fullname" . }}-pvc
+      {{- end }}

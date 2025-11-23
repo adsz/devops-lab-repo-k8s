@@ -1,0 +1,31 @@
+replicaCount: 1
+
+image:
+  repository: minio/minio
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  apiPort: 9000
+  consolePort: 9001
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+persistence:
+  enabled: false
+  size: 10Gi
+  storageClass: ""
+
+minio:
+  rootUser: "minioadmin"
+  rootPassword: "minioadmin"
+  defaultBuckets: "test-bucket,diagnostic-bucket"
+
+namespace: diagnostic-storage

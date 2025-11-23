@@ -1,0 +1,14 @@
+apiVersion: v2
+name: minio-diagnostic
+description: MinIO S3-compatible object storage for diagnostic and testing purposes
+type: application
+version: 1.0.0
+appVersion: "latest"
+keywords:
+  - minio
+  - storage
+  - s3
+  - object-storage
+  - diagnostic
+maintainers:
+  - name: DevOps Lab Team

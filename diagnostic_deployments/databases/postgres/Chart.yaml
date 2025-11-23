@@ -1,0 +1,13 @@
+apiVersion: v2
+name: postgres-diagnostic
+description: PostgreSQL database for diagnostic and testing purposes
+type: application
+version: 1.0.0
+appVersion: "16-alpine"
+keywords:
+  - postgresql
+  - database
+  - sql
+  - diagnostic
+maintainers:
+  - name: DevOps Lab Team

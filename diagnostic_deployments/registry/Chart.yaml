@@ -1,0 +1,13 @@
+apiVersion: v2
+name: registry-diagnostic
+description: Docker Registry v2 for diagnostic and testing purposes
+type: application
+version: 1.0.0
+appVersion: "2"
+keywords:
+  - docker
+  - registry
+  - container-registry
+  - diagnostic
+maintainers:
+  - name: DevOps Lab Team

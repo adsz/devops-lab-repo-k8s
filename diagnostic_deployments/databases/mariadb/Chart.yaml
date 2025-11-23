@@ -1,0 +1,14 @@
+apiVersion: v2
+name: mariadb-diagnostic
+description: MariaDB database for diagnostic and testing purposes
+type: application
+version: 1.0.0
+appVersion: "11-alpine"
+keywords:
+  - mariadb
+  - mysql
+  - database
+  - sql
+  - diagnostic
+maintainers:
+  - name: DevOps Lab Team

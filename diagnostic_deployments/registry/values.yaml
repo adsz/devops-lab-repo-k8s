@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  repository: registry
+  tag: "2"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 5000
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "512Mi"
+    cpu: "400m"
+
+persistence:
+  enabled: false
+  size: 10Gi
+  storageClass: ""
+
+registry:
+  storage:
+    delete:
+      enabled: true
+  http:
+    addr: ":5000"
+    secret: "registry-secret"
+
+namespace: diagnostic-registry

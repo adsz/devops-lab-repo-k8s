@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dnsutils
+  namespace: diagnostic-net
+  labels:
+    app: dnsutils
+    app.kubernetes.io/category: diagnostic
+    app.kubernetes.io/component: dns-debug
+spec:
+  containers:
+  - name: dnsutils
+    image: tutum/dnsutils:latest
+    command: ["sh", "-c", "sleep 3600"]
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+  restartPolicy: Always

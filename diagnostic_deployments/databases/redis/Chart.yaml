@@ -1,0 +1,13 @@
+apiVersion: v2
+name: redis-diagnostic
+description: Redis database for diagnostic and testing purposes
+type: application
+version: 1.0.0
+appVersion: "7-alpine"
+keywords:
+  - redis
+  - cache
+  - database
+  - diagnostic
+maintainers:
+  - name: DevOps Lab Team
