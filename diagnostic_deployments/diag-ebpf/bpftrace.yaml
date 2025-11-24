@@ -32,6 +32,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: bpftrace
+  namespace: diag-ebpf
 ---
 apiVersion: apps/v1
 kind: DaemonSet
