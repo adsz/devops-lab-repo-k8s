@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app-longhorn
+  namespace: argocd
+  labels:
+    app: longhorn-test
+    category: demo-app
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+    targetRevision: WIP
+    path: diagnostic_deployments/demo-app-longhorn
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-app-longhorn
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true
