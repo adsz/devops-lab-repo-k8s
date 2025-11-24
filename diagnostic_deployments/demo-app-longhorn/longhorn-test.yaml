@@ -48,6 +48,7 @@ spec:
                 <!DOCTYPE html>
                 <html>
                 <head>
+                  <meta charset="UTF-8">
                   <title>Longhorn Storage Test</title>
                   <style>
                     body { font-family: Arial; margin: 50px; background: #f0f0f0; }
