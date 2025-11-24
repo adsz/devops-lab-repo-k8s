@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "minio-diagnostic.fullname" . }}
+  labels:
+    app: minio
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/category: diagnostic
+    app.kubernetes.io/component: storage
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        ports:
+        - containerPort: 9000
+          name: api
+        - containerPort: 9001
+          name: console
+        env:
+        - name: MINIO_ROOT_USER
+          value: {{ .Values.minio.rootUser | quote }}
+        - name: MINIO_ROOT_PASSWORD
+          value: {{ .Values.minio.rootPassword | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- if .Values.persistence.enabled }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "minio-diagnostic.fullname" . }}-pvc
+      {{- end }}
