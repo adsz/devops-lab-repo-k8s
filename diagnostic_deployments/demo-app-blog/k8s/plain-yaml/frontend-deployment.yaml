@@ -24,7 +24,7 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          sed -i 's|Demo Application for K8s Diagnostic Tools|ELO3 Demo Application for K8s Diagnostic Tools<br>Deployed with Plain YAML Method|g' /usr/share/nginx/html/index.html
+          sed -i 's|Demo Application for K8s Diagnostic Tools|ELO4 Demo Application for K8s Diagnostic Tools<br>Deployed with Plain YAML Method|g' /usr/share/nginx/html/index.html
           exec nginx -g 'daemon off;'
         ports:
         - containerPort: 80
