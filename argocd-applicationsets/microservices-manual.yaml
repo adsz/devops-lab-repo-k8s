@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app-microservices
+  namespace: argocd
+  labels:
+    app: microservices
+    category: demo-app
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+    targetRevision: WIP
+    path: diagnostic_deployments/demo-app-microservices
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-app-microservices
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true

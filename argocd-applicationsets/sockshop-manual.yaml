@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app-sockshop
+  namespace: argocd
+  labels:
+    app: sockshop
+    category: demo-app
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+    targetRevision: WIP
+    path: diagnostic_deployments/demo-app-sockshop
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sock-shop
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true

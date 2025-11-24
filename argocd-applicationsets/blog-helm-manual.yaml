@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: blog-helm
+  namespace: argocd
+  labels:
+    app: blog
+    category: demo-app
+    method: helm
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+    targetRevision: WIP
+    path: diagnostic_deployments/demo-app-blog/k8s/helm/blog-app
+    helm:
+      valueFiles:
+      - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: helm
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true
