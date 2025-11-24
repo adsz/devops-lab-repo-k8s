@@ -21,6 +21,8 @@ spec:
         exclude: true  # Disabled
       - path: diagnostic_deployments/demo-app-microservices
         exclude: true  # Disabled
+      - path: diagnostic_deployments/demo-app-longhorn
+        exclude: true  # Manual sync only
 
   template:
     metadata:
