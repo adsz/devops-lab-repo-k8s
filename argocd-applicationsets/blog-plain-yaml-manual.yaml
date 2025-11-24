@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: blog-plain-yaml
+  namespace: argocd
+  labels:
+    app: blog
+    category: demo-app
+    method: plain-yaml
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/adsz/devops-lab-repo-k8s.git
+    targetRevision: WIP
+    path: diagnostic_deployments/demo-app-blog/k8s/plain-yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-blog
+
+  # Manual sync only - no automated deployment
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - PruneLast=true
