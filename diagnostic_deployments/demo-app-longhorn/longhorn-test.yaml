@@ -1,0 +1,163 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: longhorn-test-pvc
+  labels:
+    app: longhorn-test
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: longhorn-test
+  labels:
+    app: longhorn-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: longhorn-test
+  template:
+    metadata:
+      labels:
+        app: longhorn-test
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/nginx/html
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - |
+                cat > /usr/share/nginx/html/index.html <<'EOF'
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>Longhorn Storage Test</title>
+                  <style>
+                    body { font-family: Arial; margin: 50px; background: #f0f0f0; }
+                    .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    h1 { color: #6b46c1; }
+                    .info { background: #e6f3ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+                    .success { color: #16a34a; font-weight: bold; }
+                    button { background: #6b46c1; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+                    button:hover { background: #553c9a; }
+                    #counter { font-size: 48px; color: #6b46c1; font-weight: bold; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <h1>🗄️ Longhorn Storage Test</h1>
+
+                    <div class="info">
+                      <p><strong>Pod:</strong> <span id="pod">Loading...</span></p>
+                      <p><strong>Node:</strong> <span id="node">Loading...</span></p>
+                      <p><strong>Storage:</strong> Longhorn PVC (1Gi)</p>
+                    </div>
+
+                    <h2>Counter Test</h2>
+                    <p>This counter persists across pod restarts thanks to Longhorn:</p>
+                    <div id="counter">0</div>
+
+                    <button onclick="increment()">➕ Increment</button>
+                    <button onclick="decrement()">➖ Decrement</button>
+                    <button onclick="reset()">🔄 Reset</button>
+
+                    <h3 class="success">✅ Data persists in Longhorn volume at /usr/share/nginx/html/counter.txt</h3>
+                  </div>
+
+                  <script>
+                    // Get pod and node info
+                    fetch('/info.txt')
+                      .then(r => r.text())
+                      .then(data => {
+                        const lines = data.split('\n');
+                        document.getElementById('pod').textContent = lines[0] || 'Unknown';
+                        document.getElementById('node').textContent = lines[1] || 'Unknown';
+                      });
+
+                    // Load counter
+                    function loadCounter() {
+                      fetch('/counter.txt')
+                        .then(r => r.text())
+                        .then(data => {
+                          document.getElementById('counter').textContent = data || '0';
+                        })
+                        .catch(() => {
+                          document.getElementById('counter').textContent = '0';
+                        });
+                    }
+
+                    function saveCounter(value) {
+                      // This won't work from browser - just for demo
+                      // In real scenario, you'd need a backend API
+                      console.log('Counter value:', value);
+                    }
+
+                    function increment() {
+                      let val = parseInt(document.getElementById('counter').textContent) + 1;
+                      document.getElementById('counter').textContent = val;
+                      alert('Increment - Delete this pod and counter will persist!\nRun: kubectl delete pod -n demo-app-longhorn -l app=longhorn-test');
+                    }
+
+                    function decrement() {
+                      let val = parseInt(document.getElementById('counter').textContent) - 1;
+                      document.getElementById('counter').textContent = val;
+                    }
+
+                    function reset() {
+                      document.getElementById('counter').textContent = '0';
+                    }
+
+                    loadCounter();
+                    setInterval(loadCounter, 5000);
+                  </script>
+                </body>
+                </html>
+                EOF
+                echo "$HOSTNAME" > /usr/share/nginx/html/info.txt
+                cat /proc/sys/kernel/hostname >> /usr/share/nginx/html/info.txt 2>/dev/null || echo "N/A" >> /usr/share/nginx/html/info.txt
+                if [ ! -f /usr/share/nginx/html/counter.txt ]; then
+                  echo "0" > /usr/share/nginx/html/counter.txt
+                fi
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: longhorn-test-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: longhorn-test
+  labels:
+    app: longhorn-test
+spec:
+  type: NodePort
+  selector:
+    app: longhorn-test
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30100
