@@ -1,27 +1,25 @@
-title = "devops-lab allowlist"
+title = "svc-k8s-local allowlist"
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Known-safe patterns (UUIDs, example creds in docs/scripts)"
+description = "Known-safe patterns + SSH public host keys in test logs"
 regexTarget = "match"
 regexes = [
-    # UUIDs (KMS key IDs, resource IDs — public identifiers)
     '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
-    # Example creds admin:admin123, user:pass, etc. in docs
     '''admin:[a-z0-9]+123''',
     '''example[-_]?(password|secret|token)''',
-    '''your[-_]?(password|secret|token|key)''',
     '''changeme''',
-    '''REPLACE[-_]?ME''',
+    # SSH public host keys (AAAA... base64) — these are PUBLIC, not secrets
+    '''AAAA[A-Za-z0-9+/]{20,}={0,2}''',
 ]
 paths = [
     '''.*\.md$''',
     '''docs/.*''',
-    '''MIGRATION-.*''',
-    '''FINAL-STRUCTURE.*''',
     '''README.*''',
-    # Shell scripts often contain example commands with placeholder creds
     '''scripts/.*\.sh$''',
     '''.*\.example.*''',
+    # Ansible test output logs contain public host keys
+    '''.*test.*output.*\.log$''',
+    '''.*precheck.*\.log$''',
 ]
