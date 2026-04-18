@@ -1,0 +1,151 @@
+# CI Pipeline for Dev Branches
+# Runs on every push (except main) and PRs to dev
+# Customize the test/lint/scan steps for each repo type
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+      docker: ${{ steps.filter.outputs.docker }}
+      ansible: ${{ steps.filter.outputs.ansible }}
+      k8s: ${{ steps.filter.outputs.k8s }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - 'pyproject.toml'
+              - 'requirements*.txt'
+            frontend:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - 'package.json'
+            terraform:
+              - '**/*.tf'
+              - '**/*.hcl'
+            docker:
+              - 'Dockerfile*'
+              - 'docker-compose*'
+            ansible:
+              - 'ansible/**'
+              - '*.yml'
+              - '*.yaml'
+            k8s:
+              - 'deploy/**'
+              - 'helm/**'
+              - 'charts/**'
+
+  lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Python lint
+        if: needs.changes.outputs.python == 'true'
+        run: |
+          pip install ruff
+          ruff check .
+          ruff format --check .
+
+      - name: Frontend lint
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          npm ci
+          npm run lint 2>/dev/null || echo "No lint script configured"
+
+      - name: Terraform validate
+        if: needs.changes.outputs.terraform == 'true'
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      - name: YAML lint
+        if: needs.changes.outputs.ansible == 'true'
+        run: |
+          pip install yamllint
+          yamllint -c .yamllint.yml . 2>/dev/null || yamllint .
+
+  security:
+    needs: changes
+    runs-on: ubuntu-latest
+    env:
+      VAULT_ADDR: https://vault-ol01.devops-lab.cloud
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks — secrets detection
+        uses: gitleaks/gitleaks-action@cb7149a9b57195b609c63e8518d2c6056677d2d0 # v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy — vulnerability scan
+        if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true'
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947e7b4b18e3b4f2b7f # v0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+  test:
+    needs: [changes, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Python tests
+        if: needs.changes.outputs.python == 'true'
+        run: |
+          pip install uv
+          uv sync --frozen
+          uv run pytest -n auto --tb=short -q
+
+      - name: Frontend tests
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          npm ci
+          npm test -- --ci --passWithNoTests
+
+  # Gate — all checks must pass before merge is allowed
+  ci-status:
+    needs: [lint, security, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint.result }}" == "failure" ]] || \
+             [[ "${{ needs.security.result }}" == "failure" ]] || \
+             [[ "${{ needs.test.result }}" == "failure" ]]; then
+            echo "❌ CI failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

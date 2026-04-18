@@ -1,0 +1,97 @@
+# Global Expert Code Review Workflow
+# Copy to .github/workflows/review.yml in each repo
+# Customize the REVIEW_PROMPT_PATH for repo-specific expert agents
+name: Expert Code Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: expert-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+    steps:
+      - name: Determine whether to run
+        id: check
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const event = context.eventName;
+            const sender = context.payload.sender;
+            if (sender && sender.type === 'Bot') {
+              core.setOutput('should_run', 'false');
+              return;
+            }
+            if (event === 'pull_request') {
+              const pr = context.payload.pull_request;
+              if (pr.draft) {
+                core.setOutput('should_run', 'false');
+                return;
+              }
+              core.setOutput('should_run', 'true');
+              core.setOutput('pr_number', String(pr.number));
+              return;
+            }
+            if (event === 'issue_comment') {
+              const comment = context.payload.comment;
+              const issue = context.payload.issue;
+              const hasReview = comment.body.split('\n').some(l => l.trim().startsWith('/review'));
+              const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+              if (!issue.pull_request || !hasReview || !allowed.includes(comment.author_association)) {
+                core.setOutput('should_run', 'false');
+                return;
+              }
+              core.setOutput('should_run', 'true');
+              core.setOutput('pr_number', String(issue.number));
+              return;
+            }
+            core.setOutput('should_run', 'false');
+
+  expert-review:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+      VAULT_ADDR: https://vault-ol01.devops-lab.cloud
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch Anthropic key from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          role: gha-cross-repo
+          path: jwt-github
+          secrets: |
+            shared/kv/data/ai/anthropic api_key | ANTHROPIC_API_KEY
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          prompt_file: .github/prompts/expert-review-supervisor.md
+          pr_number: ${{ env.PR_NUMBER }}
+          max_turns: 50
+          timeout_minutes: 25
