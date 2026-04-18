@@ -102,9 +102,9 @@ jobs:
           fetch-depth: 0
 
       - name: Gitleaks — secrets detection
-        uses: gitleaks/gitleaks-action@cb7149a9b57195b609c63e8518d2c6056677d2d0 # v2.3.7
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar xz -C /tmp
+          /tmp/gitleaks detect --source=. --no-banner --verbose --redact || { echo "::error::Secrets detected"; exit 1; }
 
       - name: Trivy — vulnerability scan
         if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true'
