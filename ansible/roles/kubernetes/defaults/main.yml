@@ -1,0 +1,34 @@
+---
+# Kubernetes Management Role - Default Variables
+
+# Cluster configuration
+k8s_cluster_name: "local-k8s"
+k8s_version: "1.28"
+k8s_network_plugin: "calico"
+
+# Node types
+k8s_control_plane_nodes: []
+k8s_worker_nodes: []
+k8s_lb_nodes: []
+
+# Health check settings
+k8s_health_check_timeout: 300
+k8s_health_check_retries: 3
+
+# kubectl configuration
+kubectl_config_path: "~/.kube/config"
+kubectl_context: "kubernetes-admin@kubernetes"
+
+# Node maintenance
+k8s_drain_timeout: 300
+k8s_drain_grace_period: 60
+k8s_drain_delete_local_data: true
+k8s_drain_ignore_daemonsets: true
+
+# Harbor integration
+harbor_registry: "harbor.devops-lab.cloud"
+harbor_secret_name: "harbor-pull-secret"
+
+# Monitoring
+k8s_metrics_enabled: true
+k8s_logging_enabled: true

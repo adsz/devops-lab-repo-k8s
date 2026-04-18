@@ -1,0 +1,67 @@
+---
+# Kubernetes Management Role - Main Tasks
+
+- name: Check kubectl availability
+  command: kubectl version --client --short
+  register: kubectl_version
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: Display kubectl version
+  debug:
+    msg: "kubectl version: {{ kubectl_version.stdout }}"
+  when: kubectl_version.rc == 0
+
+- name: Get cluster info
+  command: kubectl cluster-info
+  register: cluster_info
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: Display cluster info
+  debug:
+    msg: "{{ cluster_info.stdout_lines }}"
+  when: cluster_info.rc == 0
+
+- name: Get node status
+  command: kubectl get nodes -o wide
+  register: node_status
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+
+- name: Display node status
+  debug:
+    msg: "{{ node_status.stdout_lines }}"
+  when: node_status.rc == 0
+
+- name: Check node health
+  command: kubectl get nodes -o json
+  register: nodes_json
+  changed_when: false
+  delegate_to: localhost
+
+- name: Parse node health status
+  set_fact:
+    unhealthy_nodes: "{{ (nodes_json.stdout | from_json).items | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'search', '\"type\": \"Ready\".*\"status\": \"False\"') | map(attribute='metadata.name') | list }}"
+  when: nodes_json.rc == 0
+
+- name: Report unhealthy nodes
+  debug:
+    msg: "WARNING: Unhealthy nodes detected: {{ unhealthy_nodes }}"
+  when:
+    - unhealthy_nodes is defined
+    - unhealthy_nodes | length > 0
+
+- name: Get pod status across all namespaces
+  command: kubectl get pods --all-namespaces -o wide
+  register: all_pods
+  changed_when: false
+  delegate_to: localhost
+
+- name: Display critical pods status
+  debug:
+    msg: "{{ all_pods.stdout_lines | select('search', 'kube-system|default') | list }}"
+  when: all_pods.rc == 0
