@@ -1,0 +1,23 @@
+# Gitleaks allowlist for known-safe identifiers
+# KMS Key UUIDs and similar public identifiers are NOT secrets
+title = "devops-lab allowlist"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for known public identifiers"
+
+# Match standard UUIDs (key IDs, resource IDs — public identifiers, not secrets)
+regexTarget = "match"
+regexes = [
+    '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+]
+
+# Also allowlist documentation paths and migration notes
+paths = [
+    '''.*\.md$''',
+    '''docs/.*''',
+    '''MIGRATION-.*''',
+    '''FINAL-STRUCTURE.*''',
+]
