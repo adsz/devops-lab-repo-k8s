@@ -1,0 +1,10 @@
+---
+name: PR diagram check
+
+"on":
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+jobs:
+  diagram:
+    uses: devops-lab-cloud/_GENERAL_RULES/.github/workflows/reusable-pr-diagram-check.yml@main
