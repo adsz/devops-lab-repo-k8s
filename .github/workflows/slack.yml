@@ -1,0 +1,27 @@
+---
+# Slack notifications — delegates ALL logic to central reusable in _GENERAL_RULES.
+# Per-repo file is a 5-line stub. Update logic ONLY in _GENERAL_RULES.
+name: Slack
+
+"on":
+  pull_request:
+    types: [opened, reopened, closed, ready_for_review]
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  create: {}
+  workflow_run:
+    workflows: [CI, "Auto-promote dev → main", "Auto-merge PR to dev", Release]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+jobs:
+  slack:
+    uses: adsz/_GENERAL_RULES/.github/workflows/reusable-slack-all-events.yml@main
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
