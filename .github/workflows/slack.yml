@@ -24,6 +24,6 @@ permissions:
 
 jobs:
   slack:
-    uses: adsz/_GENERAL_RULES/.github/workflows/reusable-slack-all-events.yml@main
+    uses: devops-lab-cloud/_GENERAL_RULES/.github/workflows/reusable-slack-all-events.yml@main
     secrets:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
