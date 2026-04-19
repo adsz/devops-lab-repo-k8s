@@ -1,0 +1,110 @@
+---
+# Auto-promote dev → main after CI passes (INFRA repo pattern).
+# Fires on push to dev. Fast-forwards main to dev. Tags infra-YYYY-MM-DD.
+# After merge to main, ArgoCD auto-syncs (targetRevision: main).
+
+name: Auto-promote dev → main
+
+"on":
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      skip_ci_check:
+        description: "Skip CI check (use when CI already passed on the PR before squash-merge)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  checks: read
+
+jobs:
+  wait-for-ci:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || inputs.skip_ci_check != true }}
+    outputs:
+      ci_ok: ${{ steps.ci.outputs.ok }}
+    steps:
+      - name: Wait for CI workflow to succeed on this SHA
+        id: ci
+        uses: actions/github-script@v7
+        with:
+          script: |
+            # GitHub dedups CI runs on squash-merge commits — CI only ran on the PR head
+            # commit, not the new dev HEAD. Walk back up to 5 commits looking for a CI run
+            # that covers the current tree (effectively the PR that was just merged).
+            const maxMin = 15;
+            const start = Date.now();
+            async function findCi(sha) {
+              const { data } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: sha,
+                per_page: 100,
+              });
+              return data.check_runs.find(c => c.name === 'validate' || c.name === 'ci');
+            }
+            while ((Date.now() - start) / 60000 < maxMin) {
+              // Try current SHA first, then walk back to find a CI run from the merged PR
+              const { data: commits } = await github.rest.repos.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                per_page: 5,
+              });
+              for (const c of commits) {
+                const ci = await findCi(c.sha);
+                if (ci && ci.status === 'completed') {
+                  if (ci.conclusion !== 'success') {
+                    core.setFailed(`CI conclusion on ${c.sha.slice(0,8)}: ${ci.conclusion}`);
+                    return;
+                  }
+                  core.info(`CI success on ${c.sha.slice(0,8)} (walked back from ${context.sha.slice(0,8)})`);
+                  core.setOutput('ok', 'true');
+                  return;
+                }
+              }
+              await new Promise(r => setTimeout(r, 20000));
+            }
+            core.setFailed('Timed out waiting for CI to complete');
+
+  promote:
+    needs: wait-for-ci
+    if: ${{ always() && (needs.wait-for-ci.outputs.ci_ok == 'true' || inputs.skip_ci_check == true) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fast-forward main to dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin --prune
+          git checkout main
+          if ! git merge-base --is-ancestor origin/main origin/dev; then
+            echo "::error::dev is not a fast-forward of main — manual merge required"
+            exit 1
+          fi
+          git merge --ff-only origin/dev
+          git push origin main
+
+      - name: Tag infra release
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          TAG="infra-${DATE}"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "Auto-promoted infra release ${DATE}"
+            git push origin "$TAG"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Auto-promote ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- dev → main fast-forwarded" >> $GITHUB_STEP_SUMMARY
+          echo "- ArgoCD will auto-sync within ~3 min (targetRevision: main)" >> $GITHUB_STEP_SUMMARY
