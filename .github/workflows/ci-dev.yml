@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     outputs:
       python: ${{ steps.filter.outputs.python }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -61,7 +61,7 @@ jobs:
 
   lint:
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -93,7 +93,7 @@ jobs:
 
   security:
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     env:
       VAULT_ADDR: https://vault-ol01.devops-lab.cloud
     steps:
@@ -117,7 +117,7 @@ jobs:
 
   test:
     needs: [changes, lint]
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -138,7 +138,7 @@ jobs:
   ci-status:
     needs: [lint, security, test]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     steps:
       - name: Check all jobs
         run: |

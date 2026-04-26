@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   gate:
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
       pr_number: ${{ steps.check.outputs.pr_number }}
@@ -66,7 +66,7 @@ jobs:
   expert-review:
     needs: gate
     if: needs.gate.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     timeout-minutes: 30
     env:
       PR_NUMBER: ${{ needs.gate.outputs.pr_number }}

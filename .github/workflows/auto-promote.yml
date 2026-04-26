@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   wait-for-ci:
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     if: ${{ github.event_name == 'push' || inputs.skip_ci_check != true }}
     outputs:
       ci_ok: ${{ steps.ci.outputs.ok }}
@@ -74,7 +74,7 @@ jobs:
   promote:
     needs: wait-for-ci
     if: ${{ always() && (needs.wait-for-ci.outputs.ci_ok == 'true' || inputs.skip_ci_check == true) }}
-    runs-on: ubuntu-latest
+    runs-on: devops-lab-runners
     steps:
       - uses: actions/checkout@v4
         with:
