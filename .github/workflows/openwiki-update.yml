@@ -61,8 +61,13 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install OpenWiki (pinned + no install scripts)
-        run: npm install --global --no-fund --no-audit --ignore-scripts openwiki@0.1.1
+      - name: Install OpenWiki (pinned; block arbitrary install scripts, rebuild only the native dep)
+        run: |
+          npm install --global --no-fund --no-audit --ignore-scripts openwiki@0.1.1
+          # --ignore-scripts blocks arbitrary postinstalls from the whole dep tree
+          # (supply-chain). openwiki needs better-sqlite3's native binding, so rebuild
+          # ONLY that one well-known package (its build script runs, nothing else).
+          ( cd "$(npm root -g)/openwiki" && npm rebuild better-sqlite3 )
 
       - name: Run OpenWiki (code mode) — only the Gemini key is in this step's env
         env:
